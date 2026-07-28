@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>금형 위치 현황판 | 태진다이텍</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#14161a; --panel:#1c1f25; --panel2:#22262e; --line:#2e3440;
+  --tx:#e9ecf1; --tx2:#98a1b0; --tx3:#6b7382;
+  --amber:#ffb020; --steel:#5b8db8; --ok:#3fb26b; --warn:#d99a2b; --bad:#e0524f;
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 2px 12px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:Pretendard,-apple-system,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.num{font-family:'Archivo Narrow',Pretendard,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+
+/* ── 헤더 ── */
+header{position:sticky;top:0;z-index:60;background:linear-gradient(180deg,#1a1d23,#15181d);border-bottom:1px solid var(--line)}
+.hbar{max-width:1500px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.brand span{font-size:11px;color:var(--tx3);font-weight:500}
+.stamp{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.livebox{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 13px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(63,178,107,.6);animation:pulse 2.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,178,107,.5)}70%{box-shadow:0 0 0 7px rgba(63,178,107,0)}100%{box-shadow:0 0 0 0 rgba(63,178,107,0)}}
+.dot.off{background:var(--tx3);animation:none}
+.dot.idle{background:var(--steel);animation:none}
+.livebox .lbl{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em}
+.livebox .val{font-size:13px;font-weight:600}
+@media(prefers-reduced-motion:reduce){.dot{animation:none}}
+
+/* ── 탭 ── */
+nav{background:#15181d;border-bottom:1px solid var(--line);position:sticky;top:53px;z-index:55}
+.tabs{max-width:1500px;margin:0 auto;padding:0 20px;display:flex;gap:2px;overflow-x:auto}
+.tab{padding:11px 16px;font-size:13px;font-weight:600;color:var(--tx3);border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s}
+.tab:hover{color:var(--tx2)}
+.tab.on{color:var(--amber);border-bottom-color:var(--amber)}
+.tab .cnt{font-size:10px;background:var(--panel2);padding:1px 5px;border-radius:8px;margin-left:5px;color:var(--tx3)}
+
+main{max-width:1500px;margin:0 auto;padding:20px}
+.page{display:none}.page.on{display:block}
+
+/* ── 요약 스트립 ── */
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px 15px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--steel)}
+.kpi.w::before{background:var(--warn)}.kpi.b::before{background:var(--bad)}.kpi.g::before{background:var(--ok)}
+.kpi .k{font-size:10.5px;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+.kpi .v{font-size:26px;font-weight:700;line-height:1.05}
+.kpi .s{font-size:11px;color:var(--tx3);margin-top:3px}
+
+/* ── 설비 타일 (시그니처) ── */
+.secthead{display:flex;align-items:center;gap:12px;margin:24px 0 12px}
+.secthead h2{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tx2)}
+.secthead .rule{flex:1;height:1px;background:var(--line)}
+.secthead .note{font-size:11px;color:var(--tx3)}
+
+.bays{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:9px}
+.bay{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 13px 13px 15px;position:relative;overflow:hidden;text-align:left;transition:transform .12s,border-color .12s;display:block;width:100%}
+.bay:hover{transform:translateY(-2px);border-color:#3d4553}
+.bay:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.bay .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tx3)}
+.bay.s0 .stripe{background:var(--ok)}
+.bay.s1 .stripe{background:var(--warn)}
+.bay.s2 .stripe{background:var(--bad)}
+.bay.empty{opacity:.5}
+.bay .id{display:flex;align-items:baseline;gap:7px;margin-bottom:7px}
+.bay .no{font-size:27px;font-weight:700;line-height:.9;color:var(--tx)}
+.bay .mc{font-size:10.5px;color:var(--tx3);font-weight:600;letter-spacing:.04em}
+.bay .pn{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bay .mn{font-size:11px;color:var(--tx2);margin-top:1px}
+.bay .foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px;font-size:10.5px;color:var(--tx3)}
+.bay .age{font-weight:600}
+.bay.s1 .age{color:var(--warn)}.bay.s2 .age{color:var(--bad)}
+.agebar{position:absolute;left:4px;right:0;bottom:0;height:2px;background:rgba(255,255,255,.05)}
+.agebar i{display:block;height:100%;background:var(--tx3)}
+.bay.s0 .agebar i{background:var(--ok)}.bay.s1 .agebar i{background:var(--warn)}.bay.s2 .agebar i{background:var(--bad)}
+.bay .vac{font-size:12px;color:var(--tx3);padding:6px 0 2px}
+
+/* ── 보관함 ── */
+.racks{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:8px}
+.rack{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:9px 11px;text-align:left;width:100%}
+.rack:hover{border-color:#3d4553}
+.rack .rc{font-size:16px;font-weight:700;margin-bottom:5px}
+.rack .rn{font-size:10.5px;color:var(--tx3);margin-bottom:6px}
+.rack ul{list-style:none;display:flex;flex-direction:column;gap:3px}
+.rack li{font-size:11px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:8px;position:relative}
+.rack li::before{content:'';position:absolute;left:0;top:7px;width:3px;height:3px;border-radius:50%;background:var(--tx3)}
+
+/* ── 폼 / 버튼 ── */
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:8px 14px;font-size:13px;font-weight:600;color:var(--tx2);transition:.13s}
+.btn:hover{background:#2a2f38;color:var(--tx)}
+.btn.pri{background:var(--amber);border-color:var(--amber);color:#1a1408}
+.btn.pri:hover{background:#ffbe45}
+.btn.sm{padding:5px 10px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:600}
+input[type=text],input[type=password],input[type=month],select,textarea{width:100%;background:#15181d;border:1px solid var(--line);border-radius:7px;padding:9px 11px;transition:border-color .13s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--steel)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.card h3{font-size:14px;font-weight:700;margin-bottom:14px}
+
+/* ── 테이블 ── */
+.tw{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:70vh}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:9px 11px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3);font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
+td{padding:8px 11px;border-bottom:1px solid rgba(46,52,64,.5)}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+.chip{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:700}
+.chip.g{background:rgba(63,178,107,.14);color:var(--ok)}
+.chip.w{background:rgba(217,154,43,.14);color:var(--warn)}
+.chip.b{background:rgba(224,82,79,.14);color:var(--bad)}
+.chip.n{background:rgba(91,141,184,.14);color:var(--steel)}
+
+/* ── 모달 ── */
+.mask{position:fixed;inset:0;background:rgba(8,9,12,.78);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+.mask.on{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:100%;max-width:480px;max-height:88vh;overflow:auto;box-shadow:var(--shadow)}
+.mhead{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.mhead h3{font-size:15px;font-weight:700}
+.mbody{padding:20px}
+.mfoot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#2a2f38;border:1px solid var(--line);border-radius:8px;padding:11px 20px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:.25s;box-shadow:var(--shadow)}
+.toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--bad);color:#ffb3b1}
+.empty{text-align:center;padding:48px 20px;color:var(--tx3);font-size:13px}
+.bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.bar input[type=text]{max-width:280px}
+.bar select{max-width:180px}
+code{background:#0f1115;padding:1px 5px;border-radius:4px;font-size:11.5px;color:var(--amber)}
+pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13px;overflow:auto;font-size:11px;line-height:1.6;color:var(--tx2)}
+.hint{font-size:11.5px;color:var(--tx3);line-height:1.6;margin-top:8px}
+
+/* ── 교체 모드 ── */
+.modes{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:3px;margin-bottom:16px}
+.mode{padding:7px 16px;font-size:13px;font-weight:600;color:var(--tx3);border-radius:6px;transition:.13s}
+.mode.on{background:var(--panel);color:var(--amber);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;padding:10px 12px;background:#15181d;border:1px solid var(--line);border-radius:7px;margin-bottom:14px;cursor:pointer}
+.chk input{width:15px;height:15px;accent-color:var(--amber)}
+.dismount{background:#15181d;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:7px;padding:11px 13px;margin-bottom:9px}
+.dismount .dm{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.dismount .dp{font-size:13px;font-weight:600}
+.dismount .dd{font-size:11px;color:var(--tx3)}
+.dismount .dsel{display:grid;grid-template-columns:1fr 130px;gap:8px}
+.dismount select{padding:7px 9px;font-size:12.5px}
+.badge{position:absolute;top:9px;right:10px;background:var(--bad);color:#fff;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.03em}
+.warnpanel{background:rgba(224,82,79,.07);border:1px solid rgba(224,82,79,.3);border-radius:9px;padding:16px 18px;margin-top:14px}
+.warnpanel h4{font-size:13px;font-weight:700;color:#ff8b88;margin-bottom:6px}
+.warnpanel p{font-size:12.5px;color:var(--tx2);line-height:1.65;margin-bottom:12px}
+.wlist{display:flex;flex-wrap:wrap;gap:7px}
+.wlist button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 11px;font-size:12px;font-weight:600;color:var(--tx2)}
+.wlist button:hover{border-color:var(--bad);color:var(--tx)}
+.wlist button b{color:var(--bad);margin-left:5px}
+
+/* ── 위치 불일치 알람 ── */
+.alarm{background:linear-gradient(90deg,rgba(224,82,79,.16),rgba(224,82,79,.06));border:1px solid rgba(224,82,79,.45);border-left:4px solid var(--bad);border-radius:10px;padding:16px 18px;margin-bottom:18px;position:relative;overflow:hidden}
+.alarm::after{content:'';position:absolute;inset:0;background:rgba(224,82,79,.09);opacity:0;animation:flash 2.6s ease-in-out infinite;pointer-events:none}
+@keyframes flash{0%,100%{opacity:0}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.alarm::after{animation:none;opacity:.35}}
+.alarm .ah{display:flex;align-items:center;gap:10px;margin-bottom:5px;position:relative;z-index:1}
+.alarm .sig{width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 9px var(--bad)}
+.alarm h3{font-size:15px;font-weight:700;color:#ff9b98}
+.alarm .sub{font-size:12px;color:var(--tx2);margin-bottom:14px;position:relative;z-index:1}
+.mslist{display:flex;flex-direction:column;gap:7px;position:relative;z-index:1}
+.msrow{display:flex;align-items:center;gap:12px;background:rgba(0,0,0,.28);border:1px solid rgba(224,82,79,.22);border-radius:7px;padding:9px 12px;flex-wrap:wrap}
+.msrow .mp{font-size:13px;font-weight:600;min-width:190px}
+.msrow .mm{font-size:11px;color:var(--tx3)}
+.msrow .arrow{display:flex;align-items:center;gap:8px;font-size:12px;flex:1;min-width:210px}
+.msrow .from{color:#ff9b98;text-decoration:line-through;text-decoration-color:rgba(224,82,79,.6)}
+.msrow .to{color:var(--ok);font-weight:600}
+.msrow .meta{font-size:10.5px;color:var(--tx3)}
+.badge.ms{background:var(--bad);animation:flash 2.6s ease-in-out infinite}
+@media(prefers-reduced-motion:reduce){.badge.ms{animation:none}}
+.bay.ms{border-color:rgba(224,82,79,.55);box-shadow:0 0 0 1px rgba(224,82,79,.25)}
+.bay .msnote{font-size:10.5px;color:#ff9b98;margin-top:6px;font-weight:600}
+.rack.ms{border-color:rgba(224,82,79,.5)}
+
+/* ── 현황판 실사 모드 ── */
+.aubar{background:linear-gradient(90deg,rgba(255,176,32,.14),rgba(255,176,32,.05));border:1px solid rgba(255,176,32,.4);border-left:4px solid var(--amber);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.aubar h3{font-size:14px;font-weight:700;color:var(--amber)}
+.aubar .prog{font-size:12px;color:var(--tx2)}
+.aubar .pbar{flex:1;min-width:140px;height:5px;background:rgba(0,0,0,.35);border-radius:3px;overflow:hidden}
+.aubar .pbar i{display:block;height:100%;background:var(--amber);transition:width .25s}
+.aubar input{max-width:130px;padding:6px 9px;font-size:12.5px}
+.aubar .sp{margin-left:auto;display:flex;gap:8px}
+.bay.au{cursor:default}
+.bay.au:hover{transform:none}
+.aurow{display:flex;align-items:center;gap:7px;padding:7px 0;border-top:1px solid rgba(46,52,64,.6);flex-wrap:wrap}
+.aurow:first-of-type{border-top:none}
+.aurow .ap{flex:1;min-width:110px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aubtn{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid var(--line);background:var(--panel2);color:var(--tx3)}
+.aubtn.ok.on{background:var(--ok);border-color:var(--ok);color:#08210f}
+.aubtn.ng.on{background:var(--bad);border-color:var(--bad);color:#fff}
+.aurow select{width:100%;margin-top:5px;padding:5px 8px;font-size:11.5px}
+.bay.done{border-color:rgba(63,178,107,.5)}
+.bay.todo{opacity:.94}
+.dim{opacity:.32;pointer-events:none}
+
+@media print{
+  body{background:#fff;color:#000}
+  header,nav,.bar,.btn,.noprint{display:none!important}
+  .card,.tw{border:1px solid #999;background:#fff}
+  th{background:#eee;color:#000}
+  td,th{border-bottom:1px solid #ccc}
+  main{padding:0;max-width:none}
+}
+@media(max-width:640px){
+  .hbar{padding:10px 14px;gap:12px}
+  main{padding:14px}
+  .stamp{width:100%;margin-left:0}
+  .row{grid-template-columns:1fr}
+  nav{top:auto;position:static}
+  header{position:static}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <div class="brand">
+      <h1>금형 위치 현황판</h1>
+      <span>㈜태진다이텍 · 품질관리팀</span>
+    </div>
+    <div class="stamp">
+      <div class="livebox">
+        <span class="dot" id="dot"></span>
+        <div><div class="lbl" id="connLbl">연결 상태</div><div class="val num" id="lastUpd">—</div></div>
+      </div>
+      <div class="livebox">
+        <div><div class="lbl">현재 시각</div><div class="val num" id="clock">—</div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav><div class="tabs" id="tabs"></div></nav>
+
+<main>
+  <!-- 현황판 -->
+  <section class="page on" id="p-board">
+    <div id="auBar"></div>
+    <div id="alarmBox"></div>
+    <div class="strip" id="kpis"></div>
+    <div class="secthead"><h2>프레스 라인</h2><div class="rule"></div><span class="note">타일을 누르면 금형을 이동 등록합니다</span></div>
+    <div class="bays" id="bays"></div>
+    <div id="warnBox"></div>
+    <div class="secthead"><h2>금형 보관장</h2><div class="rule"></div><span class="note" id="rackNote"></span></div>
+    <div class="racks" id="racks"></div>
+  </section>
+
+  <!-- 금형 조회 -->
+  <section class="page" id="p-search">
+    <div class="bar">
+      <input type="text" id="q" placeholder="품번 또는 금형번호 검색">
+      <select id="fLoc"><option value="">위치 전체</option></select>
+      <select id="fAge"><option value="">경과일 전체</option><option value="0">30일 이내</option><option value="1">31~60일</option><option value="2">60일 초과</option></select>
+      <button class="btn" onclick="exportCsv()">CSV 내려받기</button>
+      <span style="margin-left:auto;color:var(--tx3);font-size:12px" id="qCnt"></span>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>품번</th><th>금형번호</th><th>현재 위치</th><th>보관함</th><th>최종 갱신</th><th>경과</th><th></th></tr></thead>
+      <tbody id="qBody"></tbody>
+    </table></div>
+  </section>
+
+  <!-- 이동 등록 -->
+  <section class="page" id="p-move">
+    <div class="modes">
+      <button class="mode on" data-m="swap">설비 금형 교체</button>
+      <button class="mode" data-m="move">단순 이동</button>
+    </div>
+
+    <div id="mSwap" style="max-width:600px">
+      <div class="card">
+        <h3>설비 금형 교체</h3>
+        <div class="fld"><label>호기</label><select id="swMc"></select></div>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;font-weight:600">탈착 금형 · 반납 위치</label>
+          <div id="swCur"></div>
+        </div>
+        <div class="fld"><label>신규 장착 금형</label><select id="swNew"></select></div>
+        <div class="row">
+          <div class="fld"><label>담당자</label><input type="text" id="swBy" placeholder="이름"></div>
+          <div class="fld"><label>교체 사유</label><select id="swWhy">
+            <option>생산 계획 변경</option><option>금형 수리</option><option>금형 점검</option>
+            <option>품질 이상</option><option>설비 수리</option><option>기타</option></select></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="sw4m">
+          <span>4M 변경 해당 — 초기유동관리 대상</span></label>
+        <button class="btn pri" style="width:100%" onclick="saveSwap()">교체 등록</button>
+        <p class="hint">탈착 금형은 반납 위치로, 신규 금형은 해당 호기로 <strong>동시에</strong> 기록됩니다. 한 호기에 두 금형이 남는 일이 생기지 않습니다.</p>
+      </div>
+    </div>
+
+    <div id="mMove" style="max-width:520px;display:none">
+      <div class="card">
+        <h3>단순 이동</h3>
+        <div class="fld"><label>금형 선택</label><select id="mvMold"></select></div>
+        <div id="mvNow" style="background:#15181d;border:1px solid var(--line);border-radius:7px;padding:11px;margin-bottom:14px;font-size:12.5px;color:var(--tx2)"></div>
+        <div class="row">
+          <div class="fld"><label>이동 위치</label><select id="mvLoc"></select></div>
+          <div class="fld"><label>보관함 지정위치</label><select id="mvRack"></select></div>
+        </div>
+        <div class="fld"><label>담당자</label><input type="text" id="mvBy" placeholder="이름"></div>
+        <button class="btn pri" style="width:100%" onclick="saveMove()">이동 등록</button>
+        <p class="hint">등록 시각은 서버에서 기록됩니다. 등록된 이력은 수정·삭제할 수 없습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 이력 -->
+  <section class="page" id="p-hist">
+    <div class="bar">
+      <input type="text" id="hq" placeholder="품번 · 금형번호 · 위치 검색">
+      <select id="hy"><option value="">연도 전체</option></select>
+      <select id="hk"><option value="">구분 전체</option><option value="장착">장착</option><option value="반납">반납</option><option value="이동">이동</option><option value="실사보정">실사보정</option></select>
+      <select id="h4"><option value="">4M 전체</option><option value="1">4M 변경 건만</option></select>
+      <button class="btn" onclick="exportHist()">CSV 내려받기</button>
+      <span style="margin-left:auto;color:var(--tx3);font-size:12px" id="hCnt"></span>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th style="width:52px">No</th><th>일시</th><th>구분</th><th>품번</th><th>금형번호</th><th>위치</th><th>보관함</th><th>담당자</th><th>비고</th></tr></thead>
+      <tbody id="hBody"></tbody>
+    </table></div>
+  </section>
+
+  <!-- 실사 점검 -->
+  <section class="page" id="p-audit">
+    <div class="bar noprint">
+      <input type="month" id="auYm" style="max-width:170px">
+      <input type="text" id="auBy" placeholder="점검자" style="max-width:140px">
+      <input type="text" id="auCf" placeholder="확인자" style="max-width:140px">
+      <button class="btn pri" onclick="saveAudit()">실사 결과 저장</button>
+      <button class="btn" onclick="window.print()">인쇄</button>
+      <span style="margin-left:auto;color:var(--tx3);font-size:12px" id="auSum"></span>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>전수 실사 점검표 <span style="font-weight:500;color:var(--tx3);font-size:12px">· 보관장 포함</span></h3>
+      <p style="font-size:12.5px;color:var(--tx2);line-height:1.7">매월 정기 실사는 <strong style="color:var(--amber)">현황판 탭의 “실사 시작”</strong>으로 프레스 라인만 도는 것을 권합니다.
+      이 표는 보관장까지 포함한 전수 실사용입니다(연 1~2회 권장).
+      불일치로 판정하면 <strong style="color:#ff9b98">현황판에 위치 불일치 알람이 뜨고</strong>, 해당 호기 타일에도 표시됩니다.
+      알람은 자동으로 사라지지 않습니다 — 현물을 다시 확인하고 <strong>위치 보정</strong>을 실행해야 해제되며, 그 과정이 이동 이력에 남습니다.
+      부적합 발생부터 시정까지의 흐름이 그대로 기록되므로, 저장된 실사 기록이 <strong>“해당 일자 기준 현황판이 실물과 일치함”</strong>을 증명하는 기록이 됩니다.</p>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th style="width:46px">No</th><th>품번</th><th>금형번호</th><th>현황판 위치</th><th style="width:170px">판정</th><th style="width:160px">실제 위치</th><th style="width:110px">지정위치</th></tr></thead>
+      <tbody id="auBody"></tbody>
+    </table></div>
+    <div class="secthead noprint"><h2>실사 기록</h2><div class="rule"></div></div>
+    <div class="tw noprint" style="max-height:320px"><table>
+      <thead><tr><th>점검월</th><th>범위</th><th>점검일시</th><th>대상</th><th>일치</th><th>불일치</th><th>일치율</th><th>점검자</th><th>확인자</th></tr></thead>
+      <tbody id="auLog"></tbody>
+    </table></div>
+  </section>
+
+  <!-- 설정 -->
+  <section class="page" id="p-cfg">
+    <div class="row" style="align-items:start">
+      <div class="card">
+        <h3>Supabase 연결</h3>
+        <div class="fld"><label>Project URL</label><input type="text" id="cUrl" placeholder="https://xxxx.supabase.co"></div>
+        <div class="fld"><label>anon key</label><input type="password" id="cKey" placeholder="eyJhbG..."></div>
+        <div class="fld"><label>등록 PIN</label><input type="password" id="cPin" placeholder="이동 등록 시 요구할 PIN"></div>
+        <div style="display:flex;gap:9px">
+          <button class="btn pri" onclick="saveCfg()">저장 후 연결</button>
+          <button class="btn" onclick="pushSeed()">초기 데이터 업로드</button>
+        </div>
+        <p class="hint">연결 전에는 파일에 내장된 데이터(금형 <span id="sm"></span>건 · 이력 <span id="sh"></span>건)로 동작합니다. 연결 후 <strong>초기 데이터 업로드</strong>를 한 번만 실행하면 서버로 이관됩니다.</p>
+      </div>
+      <div class="card">
+        <h3>테이블 생성 SQL</h3>
+        <p style="font-size:12px;color:var(--tx2);margin-bottom:10px">Supabase SQL Editor에 붙여넣고 실행하세요. 이력 테이블은 <strong>추가만 가능</strong>하고 수정·삭제가 차단됩니다.</p>
+        <pre id="sql"></pre>
+        <button class="btn sm" style="margin-top:10px" onclick="copySql()">SQL 복사</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>설비 · 보관장 목록</h3>
+      <p style="font-size:12.5px;color:var(--tx2);margin-bottom:12px">한 줄에 하나씩 적습니다. 순서가 현황판 배치 순서가 됩니다.
+        호기는 <code>번호 설비명톤수</code> 형식으로 쓰세요 (예: <code>11 심팩200</code>). 저장하면 모든 단말에 반영됩니다.</p>
+      <div class="row">
+        <div class="fld"><label>프레스 호기</label>
+          <textarea id="cfMc" rows="14" style="font-size:12.5px;line-height:1.7" spellcheck="false"></textarea></div>
+        <div class="fld"><label>보관장 지정위치</label>
+          <textarea id="cfRk" rows="14" style="font-size:12.5px;line-height:1.7" spellcheck="false"></textarea></div>
+      </div>
+      <div style="display:flex;gap:9px">
+        <button class="btn pri" onclick="saveLists()">목록 저장</button>
+        <button class="btn" onclick="resetLists()">기본값으로 되돌리기</button>
+      </div>
+      <p class="hint" id="cfWarn"></p>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>현장 게시용 QR</h3>
+      <p style="font-size:12.5px;color:var(--tx2);margin-bottom:12px">배포 후 주소를 넣으면 QR이 만들어집니다. 출력해서 금형 보관장과 각 프레스 라인에 게시하면, 현장에서 폰으로 바로 확인·등록할 수 있습니다.</p>
+      <div class="bar"><input type="text" id="qrUrl" placeholder="https://kimsanggi85-del.github.io/mold-location/" style="max-width:420px"><button class="btn" onclick="mkQr()">QR 만들기</button></div>
+      <div id="qrBox"></div>
+    </div>
+  </section>
+</main>
+
+<!-- 이동 모달 -->
+<div class="mask" id="mask" onclick="if(event.target===this)closeM()">
+  <div class="modal">
+    <div class="mhead"><h3 id="mTitle">금형 이동</h3><button class="btn sm" onclick="closeM()">닫기</button></div>
+    <div class="mbody" id="mBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══ 내장 시드 데이터 ═══ */
+const SEED = {"m":[],"h":[]};
+
+/* ═══ 설비 마스터 ═══ */
+const DEF_MACHINES = ["01 쌍용200","02 심팩200","03 심팩150","04 심팩150","05 심팩110","06 심팩110",
+"11 심팩300","28 국일250","29 국일200","30 국일160","31 심팩150","32 심팩200","33 심팩250","34 심팩250",
+"35 심팩250","36 심팩300","37 국일200","38 국일250","39 국일250","40 심팩200","41 국일200","42 AIDA200",
+"43 HIM800","45 심팩300","46 심팩300","47 심팩300","48 심팩300","49 심팩300"];
+let MACHINES = [...DEF_MACHINES];
+const DEF_RACKS = ["A-1","A-2","A-3","B-1","B-2","C-1","C-2","C-3","CF-1","D-1","D-2","E-1","E-3","E-4","E-5",
+"H-1","H-2","H-3","H-4","I-1","J-1","가-2","가-3","마-1","아-1","자-1","차-1"];
+let RACKS = [...DEF_RACKS];
+const STORE = "보관함";
+const AGE_WARN = 30, AGE_BAD = 60;
+
+/* ═══ 저장소 래퍼 (localStorage 불가 환경 대비) ═══ */
+const mem = {};
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return mem[k] ?? null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){ mem[k]=v; } }
+};
+
+/* ═══ 상태 ═══ */
+let S = { master:[], hist:[], audit:[], cfg:{url:'',key:'',pin:''}, sb:null, ch:null, online:false, rt:false,
+  au:{on:false, ym:'', by:'', res:{}} };
+const key=m=>m.pn+'|'+m.mn;
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function fmt(d){ if(!d) return '—'; const x=new Date(d); if(isNaN(x)) return '—';
+  const p=n=>String(n).padStart(2,'0');
+  return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())} ${p(x.getHours())}:${p(x.getMinutes())}`; }
+function days(d){ if(!d) return null; const x=new Date(d); if(isNaN(x)) return null;
+  return Math.floor((Date.now()-x)/86400000); }
+function ago(d){ if(!d) return '기록 없음'; const s=Math.floor((Date.now()-new Date(d))/1000);
+  if(s<60) return '방금 전'; if(s<3600) return Math.floor(s/60)+'분 전';
+  if(s<86400) return Math.floor(s/3600)+'시간 전'; const dd=Math.floor(s/86400);
+  if(dd<30) return dd+'일 전'; if(dd<365) return Math.floor(dd/30)+'개월 전'; return Math.floor(dd/365)+'년 전'; }
+function grade(d){ const n=days(d); if(n===null) return 3; if(n<=AGE_WARN) return 0; if(n<=AGE_BAD) return 1; return 2; }
+
+function toast(m,err){ const t=$('#toast'); t.textContent=m; t.className='toast on'+(err?' err':'');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2600); }
+
+/* ═══ 탭 ═══ */
+const TABS=[['board','현황판'],['search','금형 조회'],['move','이동 등록'],['hist','이력'],['audit','실사 점검'],['cfg','설정']];
+function buildTabs(){
+  $('#tabs').innerHTML = TABS.map(([k,n],i)=>
+    `<button class="tab${i===0?' on':''}" data-k="${k}">${n}<span class="cnt" id="tc-${k}"></span></button>`).join('');
+  $$('.tab').forEach(b=>b.onclick=()=>{
+    $$('.tab').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    $$('.page').forEach(p=>p.classList.remove('on')); $('#p-'+b.dataset.k).classList.add('on');
+    if(b.dataset.k==='audit') renderAudit();
+  });
+}
+
+/* ═══ 데이터 로드 ═══ */
+function loadSeed(){
+  S.master = SEED.m.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],
+    ms:false,msLoc:'',msRack:'',msAt:'',msBy:'',msYm:''}));
+  S.hist   = SEED.h.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],by:'',
+    kind:(r[2]&&r[2]!==STORE)?'장착':'반납',note:'',m4:false}));
+}
+async function connect(){
+  const {url,key}=S.cfg;
+  if(!url||!key){ S.online=false; S.rt=false; return; }
+  S.sb = supabase.createClient(url,key);
+  await fetchAll();
+  if(S.online) subscribeRealtime();
+}
+
+async function fetchAll(){
+  if(!S.sb){ S.online=false; return; }
+  try{
+    const [m,h,a,c] = await Promise.all([
+      S.sb.from('mold_master').select('*'),
+      S.sb.from('mold_move_log').select('*').order('created_at',{ascending:true}),
+      S.sb.from('mold_audit').select('*').order('created_at',{ascending:false}),
+      S.sb.from('mold_config').select('*')
+    ]);
+    if(c.data?.length) applyLists(c.data);
+    if(m.error) throw m.error;
+    if(m.data?.length){
+      S.master = m.data.map(r=>({pn:r.pn,mn:r.mn||'',loc:r.loc,rack:r.rack||'',at:r.updated_at,
+        ms:!!r.mismatch,msLoc:r.real_loc||'',msRack:r.real_rack||'',
+        msAt:r.mismatch_at||'',msBy:r.mismatch_by||'',msYm:r.mismatch_ym||''}));
+      S.hist   = (h.data||[]).map(r=>({pn:r.pn,mn:r.mn||'',loc:r.loc,rack:r.rack||'',at:r.created_at,
+        by:r.moved_by||'',kind:r.kind||'이동',note:r.note||'',m4:!!r.is_4m}));
+      S.audit  = (a.data||[]).map(r=>({ym:r.ym,at:r.created_at,total:r.total,match:r.matched,miss:r.mismatch,by:r.auditor,cf:r.confirmer}));
+    }
+    S.online=true;
+  }catch(e){ S.online=false; S.rt=false; toast('서버 연결 실패 — 내장 데이터로 표시합니다',true); console.error(e); }
+}
+
+/* ── Supabase Realtime: 다른 단말의 변경을 즉시 반영 ── */
+let rtTimer=null;
+function subscribeRealtime(){
+  try{
+    if(S.ch){ S.sb.removeChannel(S.ch); S.ch=null; }
+    S.ch = S.sb.channel('mold-board')
+      .on('postgres_changes',{event:'*',schema:'public',table:'mold_master'},onRemote)
+      .on('postgres_changes',{event:'*',schema:'public',table:'mold_move_log'},onRemote)
+      .on('postgres_changes',{event:'*',schema:'public',table:'mold_audit'},onRemote)
+      .on('postgres_changes',{event:'*',schema:'public',table:'mold_config'},onRemote)
+      .subscribe(st=>{ S.rt = (st==='SUBSCRIBED'); renderBoard(); });
+  }catch(e){ S.rt=false; console.error(e); }
+}
+function onRemote(payload){
+  clearTimeout(rtTimer);
+  rtTimer=setTimeout(async()=>{
+    await fetchAll(); renderAll();
+    const t=payload?.table==='mold_audit'?'실사 결과':'금형 위치';
+    toast(`${t}가 변경되었습니다 — 화면을 갱신했습니다`);
+  },700);
+}
+
+/* ═══ 렌더: 현황판 ═══ */
+function lastUpdate(){
+  const ds=S.master.map(m=>m.at).filter(Boolean).sort();
+  return ds.length?ds[ds.length-1]:null;
+}
+function renderBoard(){
+  const lu=lastUpdate();
+  $('#lastUpd').textContent = lu ? ago(lu) : '기록 없음';
+  $('#dot').className = 'dot'+(S.rt?'':S.online?' idle':' off');
+  $('#connLbl').textContent = S.rt?'실시간 연결 · 최종 갱신' : S.online?'서버 연결 · 최종 갱신' : '오프라인 · 최종 갱신';
+
+  const onPress = S.master.filter(m=>m.loc && m.loc!==STORE);
+  const inStore = S.master.filter(m=>m.loc===STORE);
+  const stale   = S.master.filter(m=>grade(m.at)>=2);
+  const noRack  = inStore.filter(m=>!m.rack);
+
+  const byLoc={}; S.master.forEach(m=>{ if(!m.loc) return; (byLoc[m.loc] ||= []).push(m); });
+  const dups = MACHINES.filter(mc=>(byLoc[mc]||[]).length>1);
+  const miss = S.master.filter(m=>m.ms);
+
+  /* 실사 모드 바 */
+  const tg = S.master.filter(m=>m.loc && m.loc!==STORE);
+  const dn = tg.filter(m=>S.au.res[key(m)]).length;
+  $('#auBar').innerHTML = S.au.on ? `<div class="aubar">
+      <h3>${esc(S.au.ym)} 실사 진행 중</h3>
+      <span class="prog num">${dn} / ${tg.length}</span>
+      <div class="pbar"><i style="width:${tg.length?dn/tg.length*100:0}%"></i></div>
+      <input type="text" id="auByIn" placeholder="점검자" value="${esc(S.au.by)}">
+      <div class="sp">
+        <button class="btn sm" onclick="cancelWalk()">취소</button>
+        <button class="btn pri sm" onclick="finishWalk()">실사 완료</button>
+      </div></div>`
+    : `<div class="aubar">
+      <h3>현황판 실사</h3>
+      <span class="prog">프레스 라인 ${new Set(tg.map(m=>m.loc)).size}호기 · 금형 ${tg.length}건을 현물과 대조합니다</span>
+      <div class="sp"><button class="btn pri sm" onclick="startWalk()">실사 시작</button></div></div>`;
+  if(S.au.on) $('#auByIn').oninput=e=>S.au.by=e.target.value;
+
+  $('#alarmBox').innerHTML = miss.length && !S.au.on ? `<div class="alarm" role="alert">
+    <div class="ah"><span class="sig"></span><h3>위치 불일치 ${miss.length}건</h3></div>
+    <div class="sub">${esc(miss[0].msYm||'')} 실사에서 현황판 위치와 실물 위치가 다른 것으로 확인되었습니다.
+      현물을 다시 확인한 뒤 보정하면 이동 이력에 <strong>실사보정</strong>으로 기록되고 알람이 해제됩니다.</div>
+    <div class="mslist">${miss.map(m=>`
+      <div class="msrow">
+        <div><div class="mp">${esc(m.pn)}</div><div class="mm num">${esc(m.mn||'—')}</div></div>
+        <div class="arrow">
+          <span class="from">현황판 ${esc(m.loc||'—')}${m.rack?' '+esc(m.rack):''}</span>
+          <span style="color:var(--tx3)">→</span>
+          <span class="to">실물 ${esc(m.msLoc||'—')}${m.msRack?' '+esc(m.msRack):''}</span>
+        </div>
+        <span class="meta">${fmt(m.msAt)} · ${esc(m.msBy||'—')}</span>
+        <button class="btn sm" onclick="fixMs('${esc(m.pn)}|${esc(m.mn)}')">위치 보정</button>
+      </div>`).join('')}</div>
+  </div>` : '';
+  $('#kpis').style.display = S.au.on?'none':'';
+  $('#warnBox').style.display = S.au.on?'none':'';
+
+  $('#kpis').innerHTML = `
+    <div class="kpi"><div class="k">등록 금형</div><div class="v num">${S.master.length}</div><div class="s">이력 ${S.hist.length}건 누적</div></div>
+    <div class="kpi g"><div class="k">설비 장착</div><div class="v num">${onPress.length}</div><div class="s">가동 프레스 ${new Set(onPress.map(m=>m.loc)).size}호기</div></div>
+    <div class="kpi ${miss.length?'b':'g'}"><div class="k">위치 불일치</div><div class="v num">${miss.length}</div><div class="s">${miss.length?'보정 필요':'실사 일치'}</div></div>
+    <div class="kpi ${dups.length?'b':'g'}"><div class="k">중복 장착</div><div class="v num">${dups.length}</div><div class="s">1호기 1금형 위반</div></div>
+    <div class="kpi"><div class="k">보관장</div><div class="v num">${inStore.length}</div><div class="s">지정위치 미지정 ${noRack.length}건</div></div>
+    <div class="kpi ${stale.length?'b':'g'}"><div class="k">${AGE_BAD}일 초과 미갱신</div><div class="v num">${stale.length}</div><div class="s">실사 대조 필요</div></div>`;
+
+  $('#warnBox').innerHTML = dups.length ? `<div class="warnpanel">
+    <h4>중복 장착 ${dups.length}개 호기</h4>
+    <p>한 호기에 두 건 이상의 금형이 장착 상태로 남아 있습니다. 금형을 교체할 때 탈착 금형을 반납 처리하지 않아 누적된 것입니다.
+       호기를 눌러 교체 화면에서 정리하면, 탈착 금형이 보관장으로 반납 기록되면서 해소됩니다.</p>
+    <div class="wlist">${dups.map(mc=>
+      `<button onclick="openSwap('${esc(mc)}')">${esc(mc)}<b>${byLoc[mc].length}건</b></button>`).join('')}</div>
+  </div>` : '';
+
+  if(S.au.on){ renderWalkTiles(); }
+  else $('#bays').innerHTML = MACHINES.map(mc=>{
+    const [no,...nm]=mc.split(' ');
+    const list=(byLoc[mc]||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+    const top=list[0];
+    if(!top) return `<button class="bay empty" data-loc="${esc(mc)}">
+      <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
+      <div class="vac">장착 금형 없음</div></button>`;
+    const g=grade(top.at), d=days(top.at);
+    const pct=Math.min(100,Math.round((d??90)/90*100));
+    const mrow=list.filter(x=>x.ms);
+    return `<button class="bay s${g}${mrow.length?' ms':''}" data-loc="${esc(mc)}">
+      <span class="stripe"></span>
+      ${mrow.length?`<span class="badge ms">위치 불일치</span>`
+        :list.length>1?`<span class="badge">중복 ${list.length}</span>`:''}
+      <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
+      <div class="pn" title="${esc(top.pn)}">${esc(top.pn)}</div>
+      <div class="mn num">${esc(top.mn||'—')}</div>
+      ${mrow.length?`<div class="msnote">실사 확인 위치 · ${esc(mrow[0].msLoc)}${mrow[0].msRack?' '+esc(mrow[0].msRack):''}</div>`:''}
+      <div class="foot"><span>${fmt(top.at)}</span><span class="age num">${d===null?'—':d+'일'}</span></div>
+      <div class="agebar"><i style="width:${pct}%"></i></div>
+    </button>`;
+  }).join('');
+  if(!S.au.on) $$('.bay').forEach(b=>b.onclick=()=>openSwap(b.dataset.loc));
+
+  const byRack={}; S.master.filter(m=>m.loc===STORE).forEach(m=>{ (byRack[m.rack||'미지정'] ||= []).push(m); });
+  const keys=[...RACKS,'미지정'].filter(k=>byRack[k]);
+  $('#rackNote').textContent = `${keys.length}개 구역 · ${S.master.filter(m=>m.loc===STORE).length}건 보관`;
+  $('#racks').innerHTML = keys.map(k=>{
+    const l=byRack[k];
+    const nm=l.filter(x=>x.ms).length;
+    return `<div class="rack${nm?' ms':''}"><div class="rc num">${esc(k)}</div>
+      <div class="rn">${l.length}건${nm?` · <span style="color:#ff9b98;font-weight:700">불일치 ${nm}</span>`:''}</div>
+      <ul>${l.slice(0,7).map(m=>`<li title="${esc(m.pn)}" ${m.ms?'style="color:#ff9b98"':''}>${esc(m.pn)}</li>`).join('')}
+      ${l.length>7?`<li style="color:var(--tx3)">외 ${l.length-7}건</li>`:''}</ul></div>`;
+  }).join('');
+
+  TABS.forEach(([k])=>{ const e=$('#tc-'+k); if(!e) return;
+    e.textContent = k==='search'?S.master.length : k==='hist'?S.hist.length : k==='audit'?(S.audit.length||'') : ''; });
+}
+
+/* ═══ 렌더: 조회 ═══ */
+function renderSearch(){
+  const q=$('#q').value.trim().toLowerCase(), fl=$('#fLoc').value, fa=$('#fAge').value;
+  let rows=S.master.filter(m=>{
+    if(q && !(m.pn+' '+m.mn).toLowerCase().includes(q)) return false;
+    if(fl && m.loc!==fl) return false;
+    if(fa!=='' && String(Math.min(grade(m.at),2))!==fa) return false;
+    return true;
+  }).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  $('#qCnt').textContent = `${rows.length}건`;
+  $('#qBody').innerHTML = rows.length ? rows.map(m=>{
+    const g=grade(m.at), d=days(m.at);
+    return `<tr><td>${esc(m.pn)}</td><td class="num">${esc(m.mn||'—')}</td>
+      <td><span class="chip ${m.ms?'b':m.loc===STORE?'n':'g'}">${esc(m.loc||'—')}</span>
+          ${m.ms?`<span class="chip b" title="실사 확인 ${esc(m.msLoc)}">불일치</span>`:''}</td>
+      <td class="num">${esc(m.rack||'—')}</td><td class="num">${fmt(m.at)}</td>
+      <td><span class="chip ${['g','w','b','b'][g]}">${d===null?'없음':d+'일'}</span></td>
+      <td><button class="btn sm" onclick="openMove('${esc(m.pn)}|${esc(m.mn)}')">이동</button></td></tr>`;
+  }).join('') : `<tr><td colspan="7" class="empty">조건에 맞는 금형이 없습니다</td></tr>`;
+}
+
+/* ═══ 렌더: 이력 ═══ */
+function renderHist(){
+  const q=$('#hq').value.trim().toLowerCase(), y=$('#hy').value, k=$('#hk').value, f4=$('#h4').value;
+  let rows=S.hist.filter(h=>{
+    if(q && !(h.pn+' '+h.mn+' '+h.loc).toLowerCase().includes(q)) return false;
+    if(y && !(h.at||'').startsWith(y)) return false;
+    if(k && (h.kind||'')!==k) return false;
+    if(f4 && !h.m4) return false;
+    return true;
+  }).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  $('#hCnt').textContent=`${rows.length}건`;
+  const kc={'장착':'g','반납':'n','이동':'w','실사보정':'b'};
+  $('#hBody').innerHTML = rows.length ? rows.slice(0,600).map((h,i)=>
+    `<tr><td class="num" style="color:var(--tx3)">${rows.length-i}</td><td class="num">${fmt(h.at)}</td>
+     <td><span class="chip ${kc[h.kind]||'n'}">${esc(h.kind||'이동')}</span></td>
+     <td>${esc(h.pn)}</td><td class="num">${esc(h.mn||'—')}</td>
+     <td>${esc(h.loc||'—')}</td><td class="num">${esc(h.rack||'—')}</td><td>${esc(h.by||'—')}</td>
+     <td style="color:var(--tx3);font-size:11.5px">${h.m4?'<span class="chip b">4M</span> ':''}${esc(h.note||'')}</td></tr>`).join('')
+    : `<tr><td colspan="9" class="empty">이력이 없습니다</td></tr>`;
+}
+
+/* ═══ 이동 등록 ═══ */
+function fillSelects(){
+  const locOpts = `<option value="${STORE}">${STORE}</option>` + MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
+  $('#mvLoc').innerHTML = locOpts;
+  $('#mvRack').innerHTML = `<option value="">—</option>`+RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
+  $('#fLoc').innerHTML = `<option value="">위치 전체</option>`+locOpts;
+  $('#mvMold').innerHTML = S.master.slice().sort((a,b)=>a.pn.localeCompare(b.pn))
+    .map(m=>`<option value="${esc(m.pn)}|${esc(m.mn)}">${esc(m.pn)}${m.mn?' · '+esc(m.mn):''}</option>`).join('');
+  const yrs=[...new Set(S.hist.map(h=>(h.at||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  $('#hy').innerHTML=`<option value="">연도 전체</option>`+yrs.map(y=>`<option value="${y}">${y}년</option>`).join('');
+  $('#mvMold').onchange=showNow; showNow(); fillSwap();
+}
+function showNow(){
+  const [pn,mn]=($('#mvMold').value||'|').split('|');
+  const m=S.master.find(x=>x.pn===pn&&x.mn===mn);
+  $('#mvNow').innerHTML = m
+    ? `현재 위치 <strong style="color:var(--tx)">${esc(m.loc||'—')}</strong>${m.rack?' · '+esc(m.rack):''}
+       <span style="color:var(--tx3)"> · ${fmt(m.at)} (${ago(m.at)})</span>`
+    : '금형을 선택하세요';
+}
+/* ── 설비 금형 교체 ── */
+function mountedOn(mc){
+  return S.master.filter(m=>m.loc===mc).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+}
+function fillSwap(){
+  const cur=$('#swMc').value;
+  $('#swMc').innerHTML = MACHINES.map(mc=>{
+    const n=mountedOn(mc).length;
+    return `<option value="${mc}">${mc}${n>1?`  ⚠ 중복 ${n}건`:n===1?'':'  (비어 있음)'}</option>`;
+  }).join('');
+  if(cur) $('#swMc').value=cur;
+  $('#swNew').innerHTML = `<option value="">— 장착 없음 (반납만 처리) —</option>` +
+    S.master.filter(m=>m.loc===STORE||!m.loc).sort((a,b)=>a.pn.localeCompare(b.pn))
+      .map(m=>`<option value="${esc(m.pn)}|${esc(m.mn)}">${esc(m.pn)}${m.mn?' · '+esc(m.mn):''}${m.rack?'  ['+esc(m.rack)+']':''}</option>`).join('');
+  showMounted();
+}
+function showMounted(){
+  const mc=$('#swMc').value, list=mountedOn(mc);
+  const rackOpts=RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
+  $('#swCur').innerHTML = list.length ? list.map((m,i)=>`
+    <div class="dismount" data-pn="${esc(m.pn)}" data-mn="${esc(m.mn)}">
+      <div class="dm"><span class="dp">${esc(m.pn)}</span><span class="dd num">${esc(m.mn||'—')} · ${fmt(m.at)}</span></div>
+      <div class="dsel">
+        <select class="dLoc"><option value="${STORE}">${STORE}</option>
+          ${MACHINES.filter(x=>x!==mc).map(x=>`<option value="${x}">${x}</option>`).join('')}</select>
+        <select class="dRack"><option value="">지정위치 —</option>${rackOpts}</select>
+      </div>
+    </div>`).join('')
+    : `<div style="background:#15181d;border:1px solid var(--line);border-radius:7px;padding:12px;font-size:12.5px;color:var(--tx3)">장착된 금형이 없습니다. 신규 장착만 등록됩니다.</div>`;
+}
+function openSwap(mc){
+  goTab('move'); setMode('swap');
+  if(mc) $('#swMc').value=mc;
+  showMounted(); window.scrollTo({top:0,behavior:'smooth'});
+}
+function setMode(m){
+  $$('.mode').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  $('#mSwap').style.display = m==='swap'?'':'none';
+  $('#mMove').style.display = m==='move'?'':'none';
+}
+function goTab(k){
+  $$('.tab').forEach(x=>x.classList.toggle('on',x.dataset.k===k));
+  $$('.page').forEach(p=>p.classList.remove('on')); $('#p-'+k).classList.add('on');
+}
+
+async function saveSwap(){
+  const mc=$('#swMc').value, by=$('#swBy').value.trim(), why=$('#swWhy').value, m4=$('#sw4m').checked;
+  if(!by) return toast('담당자를 입력하세요',true);
+  const offs=$$('#swCur .dismount').map(d=>({
+    pn:d.dataset.pn, mn:d.dataset.mn,
+    loc:d.querySelector('.dLoc').value, rack:d.querySelector('.dRack').value }));
+  for(const o of offs){ if(o.loc===STORE && !o.rack) return toast(`${o.pn} 의 보관 지정위치를 선택하세요`,true); }
+  const nv=$('#swNew').value;
+  if(!offs.length && !nv) return toast('처리할 내용이 없습니다',true);
+  if(S.cfg.pin){ const p=prompt('등록 PIN을 입력하세요'); if(p!==S.cfg.pin) return toast('PIN이 일치하지 않습니다',true); }
+
+  const note=why+(m4?' / 4M 변경':'');
+  const recs=offs.map(o=>({pn:o.pn,mn:o.mn,loc:o.loc,rack:o.rack,kind:'반납',note:`${mc} 탈착 · ${note}`}));
+  if(nv){ const [pn,mn]=nv.split('|'); recs.push({pn,mn,loc:mc,rack:'',kind:'장착',note}); }
+
+  const now=new Date().toISOString();
+  if(S.online&&S.sb){
+    try{
+      await S.sb.from('mold_move_log').insert(recs.map(r=>({...r,moved_by:by,is_4m:m4})));
+      await S.sb.from('mold_master').upsert(recs.map(r=>({pn:r.pn,mn:r.mn,loc:r.loc,rack:r.rack,updated_at:now})),{onConflict:'pn,mn'});
+      await fetchAll();
+    }catch(e){ console.error(e); return toast('저장 실패: '+e.message,true); }
+  }else{
+    recs.forEach(r=>{
+      const m=S.master.find(x=>x.pn===r.pn&&x.mn===r.mn);
+      if(m){ m.loc=r.loc; m.rack=r.rack; m.at=now; }
+      S.hist.push({...r,at:now,by,m4});
+    });
+  }
+  toast(`${mc} 교체 등록 — 반납 ${offs.length}건${nv?' · 장착 1건':''}`);
+  $('#sw4m').checked=false;
+  renderAll(); showMounted();
+}
+
+function openMove(key,loc){
+  $$('.tab').forEach(x=>x.classList.remove('on'));
+  $$('.tab').find(x=>x.dataset.k==='move')?.classList.add('on');
+  $$('.page').forEach(p=>p.classList.remove('on')); $('#p-move').classList.add('on');
+  if(key) $('#mvMold').value=key;
+  if(loc) $('#mvLoc').value=loc;
+  showNow(); window.scrollTo({top:0,behavior:'smooth'});
+}
+function closeM(){ $('#mask').classList.remove('on'); }
+
+async function saveMove(){
+  const [pn,mn]=($('#mvMold').value||'|').split('|');
+  const loc=$('#mvLoc').value, rack=$('#mvRack').value, by=$('#mvBy').value.trim();
+  if(!pn){ return toast('금형을 선택하세요',true); }
+  if(!by){ return toast('담당자를 입력하세요',true); }
+  if(S.cfg.pin){
+    const p=prompt('등록 PIN을 입력하세요');
+    if(p!==S.cfg.pin) return toast('PIN이 일치하지 않습니다',true);
+  }
+  const now=new Date().toISOString();
+  if(S.online && S.sb){
+    try{
+      const {error:e1}=await S.sb.from('mold_move_log').insert({pn,mn,loc,rack,moved_by:by,kind:'이동'});
+      if(e1) throw e1;
+      await S.sb.from('mold_master').upsert({pn,mn,loc,rack,updated_at:now},{onConflict:'pn,mn'});
+      await fetchAll();
+    }catch(e){ console.error(e); return toast('저장 실패: '+e.message,true); }
+  }else{
+    const m=S.master.find(x=>x.pn===pn&&x.mn===mn);
+    if(m){ m.loc=loc; m.rack=rack; m.at=now; }
+    S.hist.push({pn,mn,loc,rack,at:now,by,kind:'이동',note:'',m4:false});
+  }
+  toast(`${pn} → ${loc}${rack?' '+rack:''} 등록`);
+  renderAll();
+}
+
+/* ═══ 실사 점검 ═══ */
+function renderAudit(){
+  if(!$('#auYm').value) $('#auYm').value=new Date().toISOString().slice(0,7);
+  const rows=S.master.slice().sort((a,b)=>(a.loc||'').localeCompare(b.loc||'')||a.pn.localeCompare(b.pn));
+  const locOpts=`<option value="">선택</option><option value="${STORE}">${STORE}</option>`+MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
+  const rackOpts=RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
+  $('#auBody').innerHTML=rows.map((m,i)=>`
+    <tr data-pn="${esc(m.pn)}" data-mn="${esc(m.mn)}"${m.ms?' style="background:rgba(224,82,79,.06)"':''}>
+      <td class="num" style="color:var(--tx3)">${i+1}</td>
+      <td>${esc(m.pn)}</td><td class="num">${esc(m.mn||'—')}</td>
+      <td>${esc(m.loc||'—')}${m.rack?' <span style="color:var(--tx3)">'+esc(m.rack)+'</span>':''}</td>
+      <td><label style="margin-right:12px;font-size:12px"><input type="radio" name="au${i}" value="ok" onchange="auChg(this)"${m.ms?'':''}> 일치</label>
+          <label style="font-size:12px"><input type="radio" name="au${i}" value="ng" onchange="auChg(this)"${m.ms?' checked':''}> 불일치</label></td>
+      <td><select class="auReal" ${m.ms?'':'disabled'}>${locOpts}</select></td>
+      <td><select class="auRack" ${m.ms?'':'disabled'}><option value="">—</option>${rackOpts}</select></td>
+    </tr>`).join('');
+  $$('#auBody tr').forEach(tr=>{
+    const m=S.master.find(x=>x.pn===tr.dataset.pn&&x.mn===tr.dataset.mn);
+    if(m?.ms){ tr.querySelector('.auReal').value=m.msLoc||''; tr.querySelector('.auRack').value=m.msRack||''; }
+  });
+  auSum();
+  $('#auLog').innerHTML = S.audit.length ? S.audit.map(a=>
+    `<tr><td class="num">${esc(a.ym)}</td><td><span class="chip ${a.scope==='설비'?'g':'n'}">${esc(a.scope||'전수')}</span></td><td class="num">${fmt(a.at)}</td><td class="num">${a.total}</td>
+     <td class="num">${a.match}</td><td class="num">${a.miss}</td>
+     <td><span class="chip ${a.miss===0?'g':a.miss<=2?'w':'b'}">${(a.match/a.total*100).toFixed(1)}%</span></td>
+     <td>${esc(a.by||'—')}</td><td>${esc(a.cf||'—')}</td></tr>`).join('')
+    : `<tr><td colspan="9" class="empty">저장된 실사 기록이 없습니다</td></tr>`;
+}
+function auChg(el){
+  const tr=el.closest('tr'), sel=tr.querySelector('.auReal'), rk=tr.querySelector('.auRack');
+  const ng = el.value==='ng';
+  sel.disabled=!ng; rk.disabled=!ng;
+  tr.style.background = ng ? 'rgba(224,82,79,.06)' : '';
+  if(!ng){ sel.value=''; rk.value=''; }
+  auSum();
+}
+function auSum(){
+  const trs=$$('#auBody tr');
+  const ok=trs.filter(t=>t.querySelector('input[value=ok]')?.checked).length;
+  const ng=trs.filter(t=>t.querySelector('input[value=ng]')?.checked).length;
+  $('#auSum').textContent=`대상 ${trs.length}건 · 점검 ${ok+ng}건 · 일치 ${ok} · 불일치 ${ng}`;
+}
+async function saveAudit(){
+  const ym=$('#auYm').value, by=$('#auBy').value.trim(), cf=$('#auCf').value.trim();
+  if(!ym) return toast('점검월을 선택하세요',true);
+  if(!by) return toast('점검자를 입력하세요',true);
+  const trs=$$('#auBody tr');
+  const ok=trs.filter(t=>t.querySelector('input[value=ok]')?.checked).length;
+  const ngRows=trs.filter(t=>t.querySelector('input[value=ng]')?.checked);
+  if(ok+ngRows.length===0) return toast('판정이 입력되지 않았습니다',true);
+  for(const t of ngRows){ if(!t.querySelector('.auReal').value) return toast('불일치 건의 실제 위치를 입력하세요',true); }
+
+  const rec={ym,at:new Date().toISOString(),total:ok+ngRows.length,match:ok,miss:ngRows.length,by,cf};
+  if(S.online&&S.sb){
+    try{
+      await S.sb.from('mold_audit').insert({ym,total:rec.total,matched:ok,mismatch:ngRows.length,auditor:by,confirmer:cf});
+      for(const t of ngRows){
+        await S.sb.from('mold_master').update({
+          mismatch:true, real_loc:t.querySelector('.auReal').value,
+          real_rack:t.querySelector('.auRack')?.value||'',
+          mismatch_at:new Date().toISOString(), mismatch_by:by, mismatch_ym:ym
+        }).eq('pn',t.dataset.pn).eq('mn',t.dataset.mn);
+      }
+      const okRows=trs.filter(t=>t.querySelector('input[value=ok]')?.checked);
+      for(const t of okRows){
+        await S.sb.from('mold_master').update({mismatch:false,real_loc:null,real_rack:null})
+          .eq('pn',t.dataset.pn).eq('mn',t.dataset.mn);
+      }
+      await fetchAll();
+    }catch(e){ return toast('저장 실패: '+e.message,true); }
+  }else{
+    S.audit.unshift(rec);
+    trs.filter(t=>t.querySelector('input[value=ok]')?.checked).forEach(t=>{
+      const m=S.master.find(x=>x.pn===t.dataset.pn&&x.mn===t.dataset.mn);
+      if(m){ m.ms=false; m.msLoc=''; m.msRack=''; }
+    });
+    ngRows.forEach(t=>{
+      const m=S.master.find(x=>x.pn===t.dataset.pn&&x.mn===t.dataset.mn);
+      if(m){ m.ms=true; m.msLoc=t.querySelector('.auReal').value;
+        m.msRack=t.querySelector('.auRack')?.value||'';
+        m.msAt=new Date().toISOString(); m.msBy=by; m.msYm=ym; }
+    });
+  }
+  toast(ngRows.length
+    ? `${ym} 실사 저장 — 불일치 ${ngRows.length}건, 현황판에 알람이 표시됩니다`
+    : `${ym} 실사 저장 — 전 건 일치 (${ok}건)`);
+  renderAll(); renderAudit();
+  if(ngRows.length) goTab('board');
+}
+
+
+
+/* ══ 설비 · 보관장 목록 관리 ══ */
+function applyLists(rows){
+  const g=k=>rows.find(r=>r.k===k)?.v;
+  const mc=g('machines'), rk=g('racks');
+  if(mc) MACHINES=mc.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(rk) RACKS=rk.split('\n').map(x=>x.trim()).filter(Boolean);
+}
+function fillLists(){
+  $('#cfMc').value=MACHINES.join('\n');
+  $('#cfRk').value=RACKS.join('\n');
+  checkLists();
+}
+function checkLists(){
+  const mc=$('#cfMc').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const used=[...new Set(S.master.map(m=>m.loc).filter(l=>l&&l!==STORE))];
+  const orphan=used.filter(u=>!mc.includes(u));
+  $('#cfWarn').innerHTML = orphan.length
+    ? `<span style="color:#ff9b98">목록에 없는 위치에 금형이 있습니다 — ${orphan.map(esc).join(', ')}. 저장하면 현황판에서 사라집니다.</span>`
+    : `현재 ${mc.length}개 호기 · 금형이 배치된 호기 ${used.length}개`;
+}
+async function saveLists(){
+  const mc=$('#cfMc').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const rk=$('#cfRk').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!mc.length) return toast('호기 목록이 비어 있습니다',true);
+  const used=[...new Set(S.master.map(m=>m.loc).filter(l=>l&&l!==STORE))];
+  const orphan=used.filter(u=>!mc.includes(u));
+  if(orphan.length && !confirm(`목록에 없는 위치에 금형이 있습니다:\n${orphan.join(', ')}\n\n저장하면 해당 금형이 현황판에서 보이지 않습니다. 계속할까요?`)) return;
+  MACHINES=mc; RACKS=rk;
+  if(S.online&&S.sb){
+    try{
+      await S.sb.from('mold_config').upsert([
+        {k:'machines',v:mc.join('\n'),updated_at:new Date().toISOString()},
+        {k:'racks',v:rk.join('\n'),updated_at:new Date().toISOString()}],{onConflict:'k'});
+    }catch(e){ return toast('저장 실패: '+e.message,true); }
+    toast('목록을 저장했습니다 — 모든 단말에 반영됩니다');
+  }else toast('목록을 적용했습니다 (이 화면에만 적용 · 서버 미연결)');
+  renderAll(); checkLists();
+}
+function resetLists(){
+  if(!confirm('기본 목록으로 되돌립니다. 계속할까요?')) return;
+  $('#cfMc').value=DEF_MACHINES.join('\n'); $('#cfRk').value=DEF_RACKS.join('\n'); checkLists();
+}
+
+/* ══ 현황판 실사 (프레스 라인 도보 점검) ══ */
+function startWalk(){
+  S.au={on:true, ym:new Date().toISOString().slice(0,7), by:'', res:{}};
+  // 미해소 불일치는 미리 불일치로 채워둠
+  S.master.filter(m=>m.ms && m.loc!==STORE).forEach(m=>{ S.au.res[key(m)]={v:'ng',loc:m.msLoc||'',rack:m.msRack||''}; });
+  renderBoard(); window.scrollTo({top:0,behavior:'smooth'});
+  toast('호기를 돌면서 일치 / 불일치를 눌러 주세요');
+}
+function cancelWalk(){
+  if(Object.keys(S.au.res).length && !confirm('점검 내용이 저장되지 않습니다. 취소할까요?')) return;
+  S.au={on:false,ym:'',by:'',res:{}}; renderBoard();
+}
+function renderWalkTiles(){
+  const byLoc={}; S.master.forEach(m=>{ if(m.loc&&m.loc!==STORE) (byLoc[m.loc] ||= []).push(m); });
+  const opts=`<option value="">실제 위치 선택</option><option value="${STORE}">${STORE}</option>`
+    +MACHINES.map(x=>`<option value="${x}">${x}</option>`).join('');
+  const rkOpts=`<option value="">지정위치 —</option>`+RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
+  $('#bays').innerHTML = MACHINES.map(mc=>{
+    const [no,...nm]=mc.split(' ');
+    const list=(byLoc[mc]||[]).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+    if(!list.length) return `<div class="bay empty dim">
+      <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
+      <div class="vac">장착 금형 없음 · 대상 아님</div></div>`;
+    const all=list.every(m=>S.au.res[key(m)]);
+    return `<div class="bay au ${all?'done':'todo'} s${all?0:3}">
+      <span class="stripe"></span>
+      <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
+      ${list.map(m=>{
+        const r=S.au.res[key(m)]||{};
+        return `<div class="aurow" data-k="${esc(key(m))}">
+          <span class="ap" title="${esc(m.pn)}">${esc(m.pn)}</span>
+          <button class="aubtn ok ${r.v==='ok'?'on':''}" onclick="mark('${esc(key(m))}','ok')">일치</button>
+          <button class="aubtn ng ${r.v==='ng'?'on':''}" onclick="mark('${esc(key(m))}','ng')">불일치</button>
+          ${r.v==='ng'?`<select onchange="markLoc('${esc(key(m))}','loc',this.value)">${opts}</select>
+            <select onchange="markLoc('${esc(key(m))}','rack',this.value)">${rkOpts}</select>`:''}
+        </div>`;}).join('')}
+    </div>`;
+  }).join('');
+  // 선택값 복원
+  $$('#bays .aurow').forEach(row=>{
+    const r=S.au.res[row.dataset.k]; if(!r||r.v!=='ng') return;
+    const sels=row.querySelectorAll('select');
+    if(sels[0]) sels[0].value=r.loc||''; if(sels[1]) sels[1].value=r.rack||'';
+  });
+}
+function mark(k,v){
+  const cur=S.au.res[k];
+  if(cur&&cur.v===v) delete S.au.res[k];
+  else S.au.res[k]={v,loc:cur?.loc||'',rack:cur?.rack||''};
+  renderBoard();
+}
+function markLoc(k,f,v){ if(S.au.res[k]) S.au.res[k][f]=v; }
+
+async function finishWalk(){
+  const by=(S.au.by||'').trim();
+  if(!by) return toast('점검자를 입력하세요',true);
+  const tg=S.master.filter(m=>m.loc&&m.loc!==STORE);
+  const res=tg.map(m=>({m,r:S.au.res[key(m)]})).filter(x=>x.r);
+  if(!res.length) return toast('점검 결과가 없습니다',true);
+  const un=tg.length-res.length;
+  if(un && !confirm(`미점검 ${un}건이 있습니다. 점검한 ${res.length}건만 저장할까요?`)) return;
+  const ng=res.filter(x=>x.r.v==='ng');
+  for(const x of ng){ if(!x.r.loc) return toast(`${x.m.pn} 의 실제 위치를 선택하세요`,true); }
+  if(S.cfg.pin){ const p=prompt('등록 PIN을 입력하세요'); if(p!==S.cfg.pin) return toast('PIN이 일치하지 않습니다',true); }
+
+  const ok=res.length-ng.length, ym=S.au.ym, now=new Date().toISOString();
+  if(S.online&&S.sb){
+    try{
+      await S.sb.from('mold_audit').insert({ym,scope:'설비',total:res.length,matched:ok,mismatch:ng.length,auditor:by});
+      for(const x of res){
+        if(x.r.v==='ng') await S.sb.from('mold_master').update({mismatch:true,real_loc:x.r.loc,real_rack:x.r.rack||'',
+          mismatch_at:now,mismatch_by:by,mismatch_ym:ym}).eq('pn',x.m.pn).eq('mn',x.m.mn);
+        else await S.sb.from('mold_master').update({mismatch:false,real_loc:null,real_rack:null})
+          .eq('pn',x.m.pn).eq('mn',x.m.mn);
+      }
+      await fetchAll();
+    }catch(e){ console.error(e); return toast('저장 실패: '+e.message,true); }
+  }else{
+    S.audit.unshift({ym,scope:'설비',at:now,total:res.length,match:ok,miss:ng.length,by,cf:''});
+    res.forEach(x=>{
+      const m=x.m;
+      if(x.r.v==='ng'){ m.ms=true; m.msLoc=x.r.loc; m.msRack=x.r.rack||''; m.msAt=now; m.msBy=by; m.msYm=ym; }
+      else { m.ms=false; m.msLoc=''; m.msRack=''; }
+    });
+  }
+  S.au={on:false,ym:'',by:'',res:{}};
+  toast(ng.length ? `실사 완료 — 불일치 ${ng.length}건, 알람이 표시됩니다` : `실사 완료 — ${ok}건 전 건 일치`);
+  renderAll();
+}
+
+/* ── 위치 보정 (불일치 해소) ── */
+async function fixMs(key){
+  const [pn,mn]=key.split('|');
+  const m=S.master.find(x=>x.pn===pn&&x.mn===mn);
+  if(!m) return;
+  const to=`${m.msLoc}${m.msRack?' '+m.msRack:''}`;
+  if(!confirm(`${pn}\n\n현황판 ${m.loc||'—'} → 실물 ${to}\n\n실물 위치로 보정합니다. 이동 이력에 '실사보정'으로 기록됩니다.`)) return;
+  const by=prompt('보정 담당자 이름')||'';
+  if(!by.trim()) return toast('담당자를 입력하세요',true);
+  const now=new Date().toISOString();
+  if(S.online&&S.sb){
+    try{
+      await S.sb.from('mold_move_log').insert({pn,mn,loc:m.msLoc,rack:m.msRack,moved_by:by,
+        kind:'실사보정',note:`${m.msYm} 실사 불일치 보정 (${m.loc} → ${m.msLoc})`});
+      await S.sb.from('mold_master').update({loc:m.msLoc,rack:m.msRack,updated_at:now,
+        mismatch:false,real_loc:null,real_rack:null}).eq('pn',pn).eq('mn',mn);
+      await fetchAll();
+    }catch(e){ return toast('보정 실패: '+e.message,true); }
+  }else{
+    S.hist.push({pn,mn,loc:m.msLoc,rack:m.msRack,at:now,by,kind:'실사보정',
+      note:`${m.msYm} 실사 불일치 보정 (${m.loc} → ${m.msLoc})`,m4:false});
+    m.loc=m.msLoc; m.rack=m.msRack; m.at=now; m.ms=false; m.msLoc=''; m.msRack='';
+  }
+  toast(`${pn} 위치 보정 완료`);
+  renderAll();
+}
+
+/* ═══ CSV ═══ */
+function dl(name,rows){
+  const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=name; a.click();
+}
+function exportCsv(){
+  dl(`금형위치현황_${new Date().toISOString().slice(0,10)}.csv`,
+    [['품번','금형번호','위치','보관함','최종갱신','경과일'],
+     ...S.master.map(m=>[m.pn,m.mn,m.loc,m.rack,fmt(m.at),days(m.at)??''])]);
+}
+function exportHist(){
+  dl(`금형이동이력_${new Date().toISOString().slice(0,10)}.csv`,
+    [['일시','구분','품번','금형번호','위치','보관함','담당자','4M','비고'],
+     ...S.hist.slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''))
+       .map(h=>[fmt(h.at),h.kind||'이동',h.pn,h.mn,h.loc,h.rack,h.by,h.m4?'해당':'',h.note||''])]);
+}
+
+/* ═══ 설정 ═══ */
+const SQL=`create table if not exists mold_master(
+  pn text not null, mn text not null default '',
+  loc text, rack text,
+  updated_at timestamptz not null default now(),
+  mismatch boolean not null default false,   -- 실사 위치 불일치 알람
+  real_loc text, real_rack text,
+  mismatch_at timestamptz, mismatch_by text, mismatch_ym text,
+  primary key (pn, mn));
+
+create table if not exists mold_move_log(
+  id bigserial primary key,
+  pn text not null, mn text default '',
+  loc text, rack text, moved_by text,
+  kind text default '이동',        -- 장착 / 반납 / 이동 / 실사보정
+  note text, is_4m boolean default false,
+  created_at timestamptz not null default now());
+
+create table if not exists mold_audit(
+  id bigserial primary key,
+  ym text not null, scope text default '전수',   -- 설비 / 전수
+  total int, matched int, mismatch int,
+  auditor text, confirmer text,
+  created_at timestamptz not null default now());
+
+create table if not exists mold_config(
+  k text primary key, v text,
+  updated_at timestamptz not null default now());
+
+alter table mold_config   enable row level security;
+alter table mold_master   enable row level security;
+alter table mold_move_log enable row level security;
+alter table mold_audit    enable row level security;
+
+-- 조회/등록은 허용, 이력은 수정·삭제 불가 (감사 증거 보전)
+create policy r0 on mold_config   for select using (true);
+create policy w0 on mold_config   for insert with check (true);
+create policy u0 on mold_config   for update using (true);
+create policy r1 on mold_master   for select using (true);
+create policy w1 on mold_master   for insert with check (true);
+create policy u1 on mold_master   for update using (true);
+create policy r2 on mold_move_log for select using (true);
+create policy w2 on mold_move_log for insert with check (true);
+create policy r3 on mold_audit    for select using (true);
+create policy w3 on mold_audit    for insert with check (true);
+
+-- 실시간 반영 (다른 단말 변경을 즉시 수신)
+alter publication supabase_realtime add table mold_master;
+alter publication supabase_realtime add table mold_move_log;
+alter publication supabase_realtime add table mold_audit;
+alter publication supabase_realtime add table mold_config;`;
+
+function saveCfg(){
+  S.cfg={url:$('#cUrl').value.trim(),key:$('#cKey').value.trim(),pin:$('#cPin').value.trim()};
+  store.set('moldloc_cfg',JSON.stringify(S.cfg));
+  connect().then(()=>{ renderAll(); toast(S.online?'서버에 연결되었습니다':'연결 정보를 확인하세요',!S.online); });
+}
+async function pushSeed(){
+  if(!S.sb) return toast('먼저 연결하세요',true);
+  if(!confirm(`금형 ${SEED.m.length}건 · 이력 ${SEED.h.length}건을 업로드합니다. 계속할까요?`)) return;
+  try{
+    const M=SEED.m.map(r=>({pn:r[0],mn:r[1]||'',loc:r[2],rack:r[3],updated_at:r[4]||new Date().toISOString()}));
+    for(let i=0;i<M.length;i+=200) await S.sb.from('mold_master').upsert(M.slice(i,i+200),{onConflict:'pn,mn'});
+    const H=SEED.h.map(r=>({pn:r[0],mn:r[1]||'',loc:r[2],rack:r[3],moved_by:'엑셀 이관',
+      kind:(r[2]&&r[2]!=='보관함')?'장착':'반납',created_at:r[4]}));
+    for(let i=0;i<H.length;i+=200) await S.sb.from('mold_move_log').insert(H.slice(i,i+200));
+    await fetchAll(); renderAll(); toast('업로드 완료');
+  }catch(e){ toast('업로드 실패: '+e.message,true); console.error(e); }
+}
+function copySql(){ navigator.clipboard.writeText(SQL).then(()=>toast('SQL을 복사했습니다')); }
+function mkQr(){
+  const u=$('#qrUrl').value.trim();
+  if(!u) return toast('주소를 입력하세요',true);
+  $('#qrBox').innerHTML=`<div style="background:#fff;padding:14px;border-radius:9px;display:inline-block">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=190x190&data=${encodeURIComponent(u)}" alt="현황판 QR" width="190" height="190">
+    <div style="color:#111;font-size:11px;text-align:center;margin-top:7px;font-weight:600">금형 위치 현황판</div></div>`;
+}
+
+/* ═══ 초기화 ═══ */
+function renderAll(){ renderBoard(); renderSearch(); renderHist(); fillSelects(); }
+
+function tick(){
+  const n=new Date(), p=x=>String(x).padStart(2,'0');
+  $('#clock').textContent=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+  const lu=lastUpdate(); if(lu) $('#lastUpd').textContent=ago(lu);
+}
+
+(async function init(){
+  buildTabs(); loadSeed();
+  try{ const c=store.get('moldloc_cfg'); if(c) S.cfg=JSON.parse(c); }catch(e){}
+  $('#cUrl').value=S.cfg.url||''; $('#cKey').value=S.cfg.key||''; $('#cPin').value=S.cfg.pin||'';
+  $('#sql').textContent=SQL; $('#sm').textContent=SEED.m.length; $('#sh').textContent=SEED.h.length;
+  await connect();
+  fillLists(); renderAll();
+  $('#cfMc').oninput=checkLists;
+  ['q','fLoc','fAge'].forEach(id=>$('#'+id).oninput=$('#'+id).onchange=renderSearch);
+  ['hq','hy','hk','h4'].forEach(id=>$('#'+id).oninput=$('#'+id).onchange=renderHist);
+  $$('.mode').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+  $('#swMc').onchange=showMounted;
+  tick(); setInterval(tick,1000);
+  // 실시간 구독이 끊긴 경우에만 동작하는 백업 폴링
+  setInterval(async()=>{
+    if(S.online && !S.rt){ await fetchAll(); renderAll(); }
+  },45000);
+})();
+</script>
+</body>
+</html>
