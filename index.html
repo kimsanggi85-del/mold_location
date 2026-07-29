@@ -479,14 +479,15 @@ body.capture main{padding:22px}
     <div class="secthead"><h2>실사 기록</h2><div class="rule"></div>
       <span class="note">행을 누르면 점검 내역이 열립니다</span></div>
     <div class="tw noprint" style="max-height:340px;margin-bottom:8px"><table>
-      <thead><tr><th>점검월</th><th>범위</th><th>점검일시</th><th>대상</th><th>일치</th><th>불일치</th><th>일치율</th><th>점검자</th><th>확인자</th><th></th></tr></thead>
+      <thead><tr><th>점검일자</th><th>범위</th><th>입력일시</th><th>대상</th><th>일치</th><th>불일치</th><th>일치율</th><th>점검자</th><th>확인자</th><th></th></tr></thead>
       <tbody id="auLog"></tbody>
     </table></div>
 
     <div class="secthead"><h2>전수 점검표 (연 2회)</h2><div class="rule"></div>
       <span class="note">월간 정기 실사는 현황판 탭의 “실사 시작”을 이용하세요</span></div>
     <div class="bar noprint">
-      <input type="month" id="auYm" style="max-width:170px">
+      <input type="month" id="auYm" style="max-width:150px" title="점검월">
+      <input type="date" id="auCd" style="max-width:160px" title="점검일자">
       <input type="text" id="auBy" placeholder="점검자" style="max-width:140px">
       <input type="text" id="auCf" placeholder="확인자" style="max-width:140px">
       <button class="btn pri" onclick="saveAudit()">실사 결과 저장</button>
@@ -536,7 +537,7 @@ body.capture main{padding:22px}
 
     <div class="secthead"><h2>실사 실시 내역</h2><div class="rule"></div></div>
     <div class="tw" style="max-height:none"><table>
-      <thead><tr><th style="width:46px">No</th><th>점검월</th><th>범위</th><th>실시일시</th>
+      <thead><tr><th style="width:46px">No</th><th>점검일자</th><th>범위</th><th>입력일시</th>
         <th>대상</th><th>일치</th><th>불일치</th><th>일치율</th><th>불일치 조치</th>
         <th>점검자</th><th>확인자</th><th class="noprint"></th></tr></thead>
       <tbody id="regBody"></tbody>
@@ -639,7 +640,8 @@ const store = {
 
 /* ═══ 상태 ═══ */
 let S = { master:[], hist:[], audit:[], cfg:{url:'',key:'',pin:''}, sb:null, ch:null, online:false, rt:false,
-  au:{on:false, ym:'', by:'', res:{}} };
+  au:{on:false, ym:'', cd:'', by:'', cf:'', res:{}} };
+const today=()=>new Date().toISOString().slice(0,10);
 const key=m=>m.pn+'|'+m.mn;
 
 const $ = s => document.querySelector(s);
@@ -708,6 +710,7 @@ async function fetchAll(){
         by:r.moved_by||'',kind:r.kind||'이동',note:r.note||'',m4:!!r.is_4m}));
     }
     if(!a.error) S.audit = (a.data||[]).map(r=>({ym:r.ym,scope:r.scope||'전수',at:r.created_at,
+      cd:r.check_date||(r.created_at||'').slice(0,10),
       total:r.total,match:r.matched,miss:r.mismatch,by:r.auditor,cf:r.confirmer,detail:r.detail||null}));
     S.online=true;
     S.emptyMaster = !m.data?.length;
@@ -766,7 +769,9 @@ function renderBoard(){
       <h3>${esc(S.au.ym)} 실사 진행 중</h3>
       <span class="prog num">${dn} / ${tg.length}</span>
       <div class="pbar"><i style="width:${tg.length?dn/tg.length*100:0}%"></i></div>
-      <input type="text" id="auByIn" placeholder="점검자" value="${esc(S.au.by)}">
+      <input type="date" id="auCdIn" value="${esc(S.au.cd)}" title="점검일자" style="max-width:150px">
+      <input type="text" id="auByIn" placeholder="점검자" value="${esc(S.au.by)}" style="max-width:120px">
+      <input type="text" id="auCfIn" placeholder="확인자" value="${esc(S.au.cf)}" style="max-width:120px">
       <div class="sp">
         <button class="btn sm" onclick="cancelWalk()">취소</button>
         <button class="btn pri sm" onclick="finishWalk()">실사 완료</button>
@@ -779,7 +784,9 @@ function renderBoard(){
         <button class="btn sm" onclick="printBoard()">인쇄</button>
         <button class="btn pri sm" onclick="startWalk()">실사 시작</button>
       </div></div>`;
-  if(S.au.on) $('#auByIn').oninput=e=>S.au.by=e.target.value;
+  if(S.au.on){ $('#auByIn').oninput=e=>S.au.by=e.target.value;
+    $('#auCfIn').oninput=e=>S.au.cf=e.target.value;
+    $('#auCdIn').onchange=e=>S.au.cd=e.target.value; }
 
   $('#alarmBox').innerHTML = miss.length && !S.au.on ? `<div class="alarm" role="alert">
     <div class="ah"><span class="sig"></span><h3>위치 불일치 ${miss.length}건</h3></div>
@@ -1067,7 +1074,8 @@ async function saveMove(){
 
 /* ═══ 실사 점검 ═══ */
 function renderAudit(){
-  if(!$('#auYm').value) $('#auYm').value=new Date().toISOString().slice(0,7);
+  if(!$('#auYm').value) $('#auYm').value=today().slice(0,7);
+  if(!$('#auCd').value) $('#auCd').value=today();
   const rows=S.master.slice().sort((a,b)=>(a.loc||'').localeCompare(b.loc||'')||a.pn.localeCompare(b.pn));
   const locOpts=`<option value="">선택</option><option value="${STORE}">${STORE}</option>`+MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
   const rackOpts=RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
@@ -1087,10 +1095,11 @@ function renderAudit(){
   });
   auSum();
   $('#auLog').innerHTML = S.audit.length ? S.audit.map((a,i)=>
-    `<tr><td class="num">${esc(a.ym)}</td><td><span class="chip ${a.scope==='설비'?'g':'n'}">${esc(a.scope||'전수')}</span></td><td class="num">${fmt(a.at)}</td><td class="num">${a.total}</td>
+    `<tr><td class="num" style="font-weight:600">${esc(a.cd||a.ym)}</td><td><span class="chip ${a.scope==='설비'?'g':'n'}">${esc(a.scope||'전수')}</span></td><td class="num" style="color:var(--tx3)">${fmt(a.at)}</td><td class="num">${a.total}</td>
      <td class="num">${a.match}</td><td class="num">${a.miss}</td>
      <td><span class="chip ${a.miss===0?'g':a.miss<=2?'w':'b'}">${a.total?(a.match/a.total*100).toFixed(1):'0.0'}%</span></td>
-     <td>${esc(a.by||'—')}</td><td>${esc(a.cf||'—')}</td>
+     <td>${esc(a.by||'—')}</td>
+     <td>${a.cf?esc(a.cf):'<span class="chip w">미확인</span>'}</td>
      <td><button class="btn sm" onclick="showAudit(${i})">상세</button></td></tr>`).join('')
     : `<tr><td colspan="10" class="empty">저장된 실사 기록이 없습니다</td></tr>`;
 }
@@ -1109,8 +1118,10 @@ function auSum(){
   $('#auSum').textContent=`대상 ${trs.length}건 · 점검 ${ok+ng}건 · 일치 ${ok} · 불일치 ${ng}`;
 }
 async function saveAudit(){
-  const ym=$('#auYm').value, by=$('#auBy').value.trim(), cf=$('#auCf').value.trim();
-  if(!ym) return toast('점검월을 선택하세요',true);
+  const cd=$('#auCd').value||today(), ym=cd.slice(0,7);
+  const by=$('#auBy').value.trim(), cf=$('#auCf').value.trim();
+  if(!cd) return toast('점검일자를 선택하세요',true);
+  $('#auYm').value=ym;
   if(!by) return toast('점검자를 입력하세요',true);
   const trs=$$('#auBody tr');
   const ok=trs.filter(t=>t.querySelector('input[value=ok]')?.checked).length;
@@ -1125,10 +1136,10 @@ async function saveAudit(){
       return {pn:t.dataset.pn,mn:t.dataset.mn,loc:m.loc||'',v:isNg?'ng':'ok',
         real:isNg?t.querySelector('.auReal').value:(m.loc||''),
         rack:isNg?(t.querySelector('.auRack')?.value||''):(m.rack||'')}; });
-  const rec={ym,scope:'전수',at:new Date().toISOString(),total:ok+ngRows.length,match:ok,miss:ngRows.length,by,cf,detail};
+  const rec={ym,scope:'전수',at:new Date().toISOString(),cd,total:ok+ngRows.length,match:ok,miss:ngRows.length,by,cf,detail};
   if(S.online&&S.sb){
     try{
-      const row={ym,scope:'전수',total:rec.total,matched:ok,mismatch:ngRows.length,auditor:by,confirmer:cf};
+      const row={ym,scope:'전수',check_date:cd,total:rec.total,matched:ok,mismatch:ngRows.length,auditor:by,confirmer:cf};
       let e0=(await S.sb.from('mold_audit').insert({...row,detail:JSON.stringify(detail)})).error;
       if(e0) await S.sb.from('mold_audit').insert(row);
       for(const t of ngRows){
@@ -1225,7 +1236,9 @@ function fixedCount(a){
 }
 
 function renderReg(){
-  const yrs=[...new Set(S.audit.map(a=>(a.at||a.ym||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  const AY=a=>(a.cd||a.ym||a.at||'').slice(0,4);
+  const AM=a=>Number((a.cd||a.ym||'').slice(5,7));
+  const yrs=[...new Set(S.audit.map(AY).filter(Boolean))].sort().reverse();
   const now=String(new Date().getFullYear());
   if(!yrs.includes(now)) yrs.unshift(now);
   const sel=$('#regYear');
@@ -1233,8 +1246,8 @@ function renderReg(){
     sel.innerHTML=yrs.map(y=>`<option value="${y}">${y}년</option>`).join('');
   const Y=sel.value||yrs[0];
 
-  const list=S.audit.filter(a=>(a.at||a.ym||'').startsWith(Y))
-    .sort((x,y)=>(y.at||'').localeCompare(x.at||''));
+  const list=S.audit.filter(a=>AY(a)===Y)
+    .sort((x,y)=>(y.cd||y.at||'').localeCompare(x.cd||x.at||''));
   const eq=list.filter(a=>a.scope==='설비'), full=list.filter(a=>a.scope!=='설비');
 
   // ── KPI
@@ -1251,12 +1264,12 @@ function renderReg(){
 
   // ── 연간 매트릭스
   const cell=(arr,planMonths,mo)=>{
-    const hit=arr.filter(a=>Number((a.ym||'').slice(5,7))===mo);
+    const hit=arr.filter(a=>AM(a)===mo);
     const isPlan=planMonths.includes(mo);
     if(hit.length){
       const t=hit.reduce((s,a)=>s+a.total,0), m=hit.reduce((s,a)=>s+a.match,0);
       const r=t?m/t*100:0;
-      return `<span class="mx ${r>=98?'done':r>=90?'warn':'miss'}" title="${hit[0].ym} 일치율 ${r.toFixed(1)}%">${Math.round(r)}</span>`;
+      return `<span class="mx ${r>=98?'done':r>=90?'warn':'miss'}" title="${hit.map(x=>x.cd||x.ym).join(', ')} · 일치율 ${r.toFixed(1)}%">${Math.round(r)}</span>`;
     }
     const past = Number(Y)<Number(now) || (Y===now && mo<=new Date().getMonth()+1);
     if(isPlan) return `<span class="mx ${past?'miss':'plan'}" title="${past?'미실시':'예정'}">${past?'✕':'○'}</span>`;
@@ -1281,12 +1294,13 @@ function renderReg(){
     const r=a.total?a.match/a.total*100:0;
     const gi=S.audit.indexOf(a);
     return `<tr><td class="num" style="color:var(--tx3)">${list.length-i}</td>
-      <td class="num">${esc(a.ym)}</td>
+      <td class="num" style="font-weight:600">${esc(a.cd||a.ym)}</td>
       <td><span class="chip ${a.scope==='설비'?'g':'n'}">${esc(a.scope||'전수')}</span></td>
-      <td class="num">${fmt(a.at)}</td>
+      <td class="num" style="color:var(--tx3)">${fmt(a.at)}</td>
       <td class="num">${a.total}</td><td class="num">${a.match}</td><td class="num">${a.miss}</td>
       <td><span class="chip ${r>=98?'g':r>=90?'w':'b'}">${r.toFixed(1)}%</span></td>
-      <td>${st}</td><td>${esc(a.by||'—')}</td><td>${esc(a.cf||'—')}</td>
+      <td>${st}</td><td>${esc(a.by||'—')}</td>
+      <td>${a.cf?esc(a.cf):'<span class="chip w">미확인</span>'}</td>
       <td class="noprint"><button class="btn sm" onclick="showAudit(${gi})">상세</button></td></tr>`;
   }).join('') : `<tr><td colspan="12" class="empty">${Y}년 실사 기록이 없습니다</td></tr>`;
 }
@@ -1299,9 +1313,9 @@ function regCsv(){
   const Y=$('#regYear').value;
   const list=S.audit.filter(a=>(a.at||a.ym||'').startsWith(Y)).sort((x,y)=>(x.at||'').localeCompare(y.at||''));
   dl(`금형위치_실사관리대장_${Y}.csv`,
-    [['점검월','범위','실시일시','대상','일치','불일치','일치율','불일치 조치','점검자','확인자'],
+    [['점검일자','범위','입력일시','대상','일치','불일치','일치율','불일치 조치','점검자','확인자'],
      ...list.map(a=>{ const f=fixedCount(a);
-       return [a.ym,a.scope||'전수',fmt(a.at),a.total,a.match,a.miss,
+       return [a.cd||a.ym,a.scope||'전수',fmt(a.at),a.total,a.match,a.miss,
          (a.total?(a.match/a.total*100).toFixed(1):'0.0')+'%',
          f.n?`${f.done}/${f.n} 조치`:'해당 없음',a.by||'',a.cf||'']; })]);
 }
@@ -1312,7 +1326,7 @@ function showAudit(i){
   let d=[];
   try{ d = typeof a.detail==='string' ? JSON.parse(a.detail||'[]') : (a.detail||[]); }catch(e){ d=[]; }
   const ng=d.filter(x=>x.v==='ng'), ok=d.filter(x=>x.v==='ok');
-  $('#mTitle').textContent = `${a.ym} 실사 결과 (${a.scope||'전수'})`;
+  $('#mTitle').textContent = `${a.cd||a.ym} 실사 결과 (${a.scope||'전수'})`;
   $('#mBody').innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
       ${[['대상',a.total,''],['일치',a.match,'g'],['불일치',a.miss,a.miss?'b':'g'],
@@ -1321,7 +1335,7 @@ function showAudit(i){
           <div class="k">${k}</div><div class="v num" style="font-size:19px">${v}</div></div>`).join('')}
     </div>
     <div style="font-size:12px;color:var(--tx2);margin-bottom:14px">
-      점검일시 ${fmt(a.at)} · 점검자 <strong>${esc(a.by||'—')}</strong>${a.cf?` · 확인자 <strong>${esc(a.cf)}</strong>`:''}
+      점검일자 <strong>${esc(a.cd||a.ym)}</strong> · 입력일시 ${fmt(a.at)} · 점검자 <strong>${esc(a.by||'—')}</strong>${a.cf?` · 확인자 <strong>${esc(a.cf)}</strong>`:''}
     </div>
     ${!d.length ? `<div class="empty" style="padding:24px">이 기록에는 상세 내역이 저장되어 있지 않습니다.<br>
         <span style="font-size:11.5px">(상세 저장 기능 적용 이전 기록)</span></div>` : `
@@ -1346,8 +1360,8 @@ function showAudit(i){
 function auditCsv(i){
   const a=S.audit[i]; let d=[];
   try{ d = typeof a.detail==='string' ? JSON.parse(a.detail||'[]') : (a.detail||[]); }catch(e){}
-  dl(`금형위치실사_${a.ym}_${a.scope||'전수'}.csv`,
-    [['점검월','범위','점검일시','점검자','확인자'],[a.ym,a.scope||'전수',fmt(a.at),a.by||'',a.cf||''],[],
+  dl(`금형위치실사_${(a.cd||a.ym)}_${a.scope||'전수'}.csv`,
+    [['점검일자','범위','입력일시','점검자','확인자'],[a.cd||a.ym,a.scope||'전수',fmt(a.at),a.by||'',a.cf||''],[],
      ['품번','금형번호','점검표 위치','판정','실제 위치','지정 보관위치'],
      ...d.map(x=>[x.pn,x.mn||'',x.loc||'',x.v==='ok'?'일치':'불일치',x.real||'',x.rack||''])]);
 }
@@ -1436,7 +1450,7 @@ function resetLists(){
 
 /* ══ 현황판 실사 (프레스 라인 도보 점검) ══ */
 function startWalk(){
-  S.au={on:true, ym:new Date().toISOString().slice(0,7), by:'', res:{}};
+  S.au={on:true, ym:today().slice(0,7), cd:today(), by:'', cf:'', res:{}};
   // 미해소 불일치는 미리 불일치로 채워둠
   S.master.filter(m=>m.ms && m.loc!==STORE).forEach(m=>{ S.au.res[key(m)]={v:'ng',loc:m.msLoc||'',rack:m.msRack||''}; });
   renderBoard(); window.scrollTo({top:0,behavior:'smooth'});
@@ -1444,7 +1458,7 @@ function startWalk(){
 }
 function cancelWalk(){
   if(Object.keys(S.au.res).length && !confirm('점검 내용이 저장되지 않습니다. 취소할까요?')) return;
-  S.au={on:false,ym:'',by:'',res:{}}; renderBoard();
+  S.au={on:false,ym:'',cd:'',by:'',cf:'',res:{}}; renderBoard();
 }
 function renderWalkTiles(){
   const byLoc={}; S.master.forEach(m=>{ if(m.loc&&m.loc!==STORE) (byLoc[m.loc] ||= []).push(m); });
@@ -1496,8 +1510,10 @@ function markLoc(k,f,v){
 }
 
 async function finishWalk(){
-  const by=(S.au.by||'').trim();
+  const by=(S.au.by||'').trim(), cf=(S.au.cf||'').trim(), cd=S.au.cd||today();
   if(!by) return toast('점검자를 입력하세요',true);
+  if(!cf && !confirm('확인자가 비어 있습니다.\n\n확인자 서명이 없으면 심사에서 증빙으로 인정받기 어렵습니다.\n이대로 저장할까요?')) return;
+  if(!cd) return toast('점검일자를 입력하세요',true);
   const tg=S.master.filter(m=>m.loc&&m.loc!==STORE);
   const res=tg.map(m=>({m,r:S.au.res[key(m)]})).filter(x=>x.r);
   if(!res.length) return toast('점검 결과가 없습니다',true);
@@ -1508,12 +1524,12 @@ async function finishWalk(){
   if(S.cfg.pin){ const p=prompt('등록 PIN을 입력하세요'); if(p!==S.cfg.pin) return toast('PIN이 일치하지 않습니다',true); }
 
   if(!S.online && !confirm('서버에 연결되어 있지 않습니다.\n\n지금 저장하면 이 화면에만 남고 새로고침하면 사라집니다.\n계속할까요?')) return;
-  const ok=res.length-ng.length, ym=S.au.ym, now=new Date().toISOString();
+  const ok=res.length-ng.length, ym=cd.slice(0,7), now=new Date().toISOString();
   const detail=res.map(x=>({pn:x.m.pn,mn:x.m.mn,loc:x.m.loc,v:x.r.v,
     real:x.r.v==='ng'?x.r.loc:x.m.loc, rack:x.r.v==='ng'?(x.r.rack||''):(x.m.rack||'')}));
   if(S.online&&S.sb){
     try{
-      const row={ym,scope:'설비',total:res.length,matched:ok,mismatch:ng.length,auditor:by};
+      const row={ym,scope:'설비',check_date:cd,total:res.length,matched:ok,mismatch:ng.length,auditor:by,confirmer:cf||null};
       let e1=(await S.sb.from('mold_audit').insert({...row,detail:JSON.stringify(detail)})).error;
       if(e1) await S.sb.from('mold_audit').insert(row);   // detail 컬럼 없는 경우 대비
       for(const x of res){
@@ -1525,14 +1541,14 @@ async function finishWalk(){
       await fetchAll();
     }catch(e){ console.error(e); return toast('저장 실패: '+e.message,true); }
   }else{
-    S.audit.unshift({ym,scope:'설비',at:now,total:res.length,match:ok,miss:ng.length,by,cf:'',detail});
+    S.audit.unshift({ym,scope:'설비',at:now,cd,total:res.length,match:ok,miss:ng.length,by,cf,detail});
     res.forEach(x=>{
       const m=x.m;
       if(x.r.v==='ng'){ m.ms=true; m.msLoc=x.r.loc; m.msRack=x.r.rack||''; m.msAt=now; m.msBy=by; m.msYm=ym; }
       else { m.ms=false; m.msLoc=''; m.msRack=''; }
     });
   }
-  S.au={on:false,ym:'',by:'',res:{}};
+  S.au={on:false,ym:'',cd:'',by:'',cf:'',res:{}};
   renderAll(); renderAudit();
   toast(ng.length ? `실사 완료 — 불일치 ${ng.length}건 · 결과는 실사 점검 탭에서 확인` : `실사 완료 — ${ok}건 전 건 일치 · 결과는 실사 점검 탭`);
   if(!ng.length) goTab('audit');
@@ -1605,6 +1621,7 @@ create table if not exists mold_move_log(
 create table if not exists mold_audit(
   id bigserial primary key,
   ym text not null, scope text default '전수',   -- 설비 / 전수
+  check_date date,                  -- 실제 점검일자 (입력일시와 별개)
   total int, matched int, mismatch int,
   auditor text, confirmer text,
   detail text,                      -- 점검 내역(JSON): 금형별 일치/불일치
