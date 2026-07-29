@@ -215,6 +215,20 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
 .dim{opacity:.32;pointer-events:none}
 
 /* ── 인쇄 / 캡처 머리글 ── */
+#regHead{display:none;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--line)}
+#regHead h2{font-size:20px;font-weight:700}
+#regHead .ph2{display:flex;justify-content:space-between;font-size:11.5px;color:var(--tx3);margin-top:4px}
+body.capture #regHead{display:block}
+.mx{display:inline-block;min-width:30px;padding:3px 6px;border-radius:6px;font-size:11px;font-weight:700;
+  text-align:center;white-space:nowrap;line-height:1.35}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px;font-size:11.5px;color:var(--tx3);align-items:center}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{font-style:normal;min-width:26px;padding:2px 5px;font-size:10px}
+.mx.done{background:rgba(63,178,107,.18);color:var(--ok)}
+.mx.warn{background:rgba(217,154,43,.18);color:var(--warn)}
+.mx.miss{background:rgba(224,82,79,.18);color:var(--bad)}
+.mx.plan{background:rgba(255,255,255,.05);color:var(--tx3)}
+.mx.na{color:var(--tx3);opacity:.35}
 #printHead{display:none;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--line)}
 #printHead h2{font-size:20px;font-weight:700;letter-spacing:-.01em}
 #printHead .ph2{display:flex;justify-content:space-between;font-size:11.5px;color:var(--tx3);margin-top:4px}
@@ -249,9 +263,25 @@ body.capture main{padding:22px}
   .msrow{background:#f7f7f7;border-color:#ccc}
   .warnpanel{background:#fff;border:1.5px solid #c00}.warnpanel h4{color:#c00}.warnpanel p{color:#333}
   .card,.tw{border:1px solid #999;background:#fff}
+  #regHead{display:block!important;border-bottom:2px solid #333}
+  #regHead h2{color:#000}#regHead .ph2{color:#555}
+  #regSign table{border-collapse:collapse}#regSign th,#regSign td{border:1px solid #666;padding:6px}
+  .mx{border:1px solid #999;color:#000!important;background:#fff!important;min-width:26px;padding:2px 4px;font-size:10px}
+  .legend{color:#555}
+  .mx.miss{background:#ffe3e3!important;border-color:#c00}
+  .mx.done{background:#e6f4ea!important}
+  .mx.na{border:none}
   #setupBox{display:block!important}
   #setupBox img{width:260px;height:260px}
   .card,.tw{border:1px solid #999;background:#fff}
+  #regHead{display:block!important;border-bottom:2px solid #333}
+  #regHead h2{color:#000}#regHead .ph2{color:#555}
+  #regSign table{border-collapse:collapse}#regSign th,#regSign td{border:1px solid #666;padding:6px}
+  .mx{border:1px solid #999;color:#000!important;background:#fff!important;min-width:26px;padding:2px 4px;font-size:10px}
+  .legend{color:#555}
+  .mx.miss{background:#ffe3e3!important;border-color:#c00}
+  .mx.done{background:#e6f4ea!important}
+  .mx.na{border:none}
   th{background:#eee;color:#000}
   td,th{border-bottom:1px solid #ccc}
   main{padding:0;max-width:none}
@@ -419,6 +449,49 @@ body.capture main{padding:22px}
     </table></div>
   </section>
 
+  <!-- 실사관리대장 -->
+  <section class="page" id="p-reg">
+    <div id="regHead">
+      <h2>금형 위치 실사관리대장</h2>
+      <div class="ph2"><span>㈜태진다이텍 품질관리팀</span><span id="regStamp"></span></div>
+    </div>
+    <div class="bar noprint">
+      <select id="regYear" style="max-width:130px"></select>
+      <span style="font-size:12px;color:var(--tx3)">계획 : 설비 장착 월 1회 · 보관장 포함 전수 연 2회 (상·하반기)</span>
+      <button class="btn" style="margin-left:auto" onclick="printReg()">인쇄</button>
+      <button class="btn" onclick="regCsv()">CSV</button>
+    </div>
+    <div class="strip" id="regKpi"></div>
+
+    <div class="secthead"><h2>연간 실시 현황</h2><div class="rule"></div>
+      <span class="note">계획 대비 실시 여부 · 칸의 숫자는 일치율</span></div>
+    <div class="tw" style="max-height:none"><table id="regMx">
+      <thead id="regMxHead"></thead>
+      <tbody id="regMxBody"></tbody>
+    </table></div>
+    <div class="legend">
+      <span><i class="mx done">98</i> 실시 · 숫자는 일치율(%)</span>
+      <span><i class="mx miss">✕</i> 미실시</span>
+      <span><i class="mx plan">○</i> 예정</span>
+      <span><i class="mx na">·</i> 해당 없음</span>
+    </div>
+
+    <div class="secthead"><h2>실사 실시 내역</h2><div class="rule"></div></div>
+    <div class="tw" style="max-height:none"><table>
+      <thead><tr><th style="width:46px">No</th><th>점검월</th><th>범위</th><th>실시일시</th>
+        <th>대상</th><th>일치</th><th>불일치</th><th>일치율</th><th>불일치 조치</th>
+        <th>점검자</th><th>확인자</th><th class="noprint"></th></tr></thead>
+      <tbody id="regBody"></tbody>
+    </table></div>
+
+    <div id="regSign" style="margin-top:18px;display:none">
+      <table style="width:100%;max-width:420px;margin-left:auto">
+        <tr><th style="text-align:center">작성</th><th style="text-align:center">검토</th><th style="text-align:center">승인</th></tr>
+        <tr><td style="height:52px"></td><td></td><td></td></tr>
+      </table>
+    </div>
+  </section>
+
   <!-- 설정 -->
   <section class="page" id="p-cfg">
     <div class="row" style="align-items:start">
@@ -530,7 +603,7 @@ function toast(m,err){ const t=$('#toast'); t.textContent=m; t.className='toast 
   clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2600); }
 
 /* ═══ 탭 ═══ */
-const TABS=[['board','현황판'],['search','금형 조회'],['move','이동 등록'],['hist','이력'],['audit','실사 점검'],['cfg','설정']];
+const TABS=[['board','현황판'],['search','금형 조회'],['move','이동 등록'],['hist','이력'],['audit','실사 점검'],['reg','실사관리대장'],['cfg','설정']];
 function buildTabs(){
   $('#tabs').innerHTML = TABS.map(([k,n],i)=>
     `<button class="tab${i===0?' on':''}" data-k="${k}">${n}<span class="cnt" id="tc-${k}"></span></button>`).join('');
@@ -538,6 +611,7 @@ function buildTabs(){
     $$('.tab').forEach(x=>x.classList.remove('on')); b.classList.add('on');
     $$('.page').forEach(p=>p.classList.remove('on')); $('#p-'+b.dataset.k).classList.add('on');
     if(b.dataset.k==='audit') renderAudit();
+    if(b.dataset.k==='reg') renderReg();
   });
 }
 
@@ -1069,6 +1143,107 @@ function applySetupHash(){
 }
 
 
+
+/* ══ 실사관리대장 ══ */
+function auDetail(a){
+  try{ return typeof a.detail==='string' ? JSON.parse(a.detail||'[]') : (a.detail||[]); }catch(e){ return []; }
+}
+// 실사 이후 '실사보정' 이력이 있으면 조치 완료로 판정
+function fixedCount(a){
+  const ng=auDetail(a).filter(x=>x.v==='ng');
+  if(!ng.length) return {n:0,done:0};
+  let done=0;
+  ng.forEach(x=>{
+    const hit=S.hist.some(h=>h.pn===x.pn && (h.mn||'')===(x.mn||'')
+      && h.kind==='실사보정' && (h.at||'')>=(a.at||''));
+    const still=S.master.find(m=>m.pn===x.pn&&(m.mn||'')===(x.mn||''))?.ms;
+    if(hit || !still) done++;
+  });
+  return {n:ng.length,done};
+}
+
+function renderReg(){
+  const yrs=[...new Set(S.audit.map(a=>(a.at||a.ym||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  const now=String(new Date().getFullYear());
+  if(!yrs.includes(now)) yrs.unshift(now);
+  const sel=$('#regYear');
+  if(sel.options.length!==yrs.length || !sel.value)
+    sel.innerHTML=yrs.map(y=>`<option value="${y}">${y}년</option>`).join('');
+  const Y=sel.value||yrs[0];
+
+  const list=S.audit.filter(a=>(a.at||a.ym||'').startsWith(Y))
+    .sort((x,y)=>(y.at||'').localeCompare(x.at||''));
+  const eq=list.filter(a=>a.scope==='설비'), full=list.filter(a=>a.scope!=='설비');
+
+  // ── KPI
+  const planned=12+2, doneN=list.length;
+  const rate=list.length? list.reduce((s,a)=>s+(a.total?a.match/a.total:0),0)/list.length*100 : null;
+  const openMs=S.master.filter(m=>m.ms).length;
+  $('#regKpi').innerHTML=`
+    <div class="kpi"><div class="k">연간 계획</div><div class="v num">${planned}</div><div class="s">월간 12 · 전수 2</div></div>
+    <div class="kpi ${doneN>=1?'g':'w'}"><div class="k">실시</div><div class="v num">${doneN}</div><div class="s">월간 ${eq.length} · 전수 ${full.length}</div></div>
+    <div class="kpi ${rate===null?'':rate>=98?'g':rate>=90?'w':'b'}"><div class="k">평균 일치율</div>
+      <div class="v num">${rate===null?'—':rate.toFixed(1)+'%'}</div><div class="s">${Y}년 누계</div></div>
+    <div class="kpi ${openMs?'b':'g'}"><div class="k">미조치 불일치</div><div class="v num">${openMs}</div>
+      <div class="s">${openMs?'위치 보정 필요':'전 건 조치 완료'}</div></div>`;
+
+  // ── 연간 매트릭스
+  const cell=(arr,planMonths,mo)=>{
+    const hit=arr.filter(a=>Number((a.ym||'').slice(5,7))===mo);
+    const isPlan=planMonths.includes(mo);
+    if(hit.length){
+      const t=hit.reduce((s,a)=>s+a.total,0), m=hit.reduce((s,a)=>s+a.match,0);
+      const r=t?m/t*100:0;
+      return `<span class="mx ${r>=98?'done':r>=90?'warn':'miss'}" title="${hit[0].ym} 일치율 ${r.toFixed(1)}%">${Math.round(r)}</span>`;
+    }
+    const past = Number(Y)<Number(now) || (Y===now && mo<=new Date().getMonth()+1);
+    if(isPlan) return `<span class="mx ${past?'miss':'plan'}" title="${past?'미실시':'예정'}">${past?'✕':'○'}</span>`;
+    return `<span class="mx na">·</span>`;
+  };
+  $('#regMxHead').innerHTML = `<tr><th style="width:150px">점검 구분</th>`
+    + [1,2,3,4,5,6,7,8,9,10,11,12].map(x=>`<th style="text-align:center;min-width:44px">${x}월</th>`).join('')
+    + `<th style="width:74px;text-align:center">실시</th></tr>`;
+  const rows=[['설비 장착 (월 1회)',eq,[1,2,3,4,5,6,7,8,9,10,11,12]],
+              ['전수 (연 2회)',full,[6,12]]];
+  $('#regMxBody').innerHTML=rows.map(([nm,arr,pm])=>
+    `<tr><td style="font-weight:600">${nm}</td>
+     ${[1,2,3,4,5,6,7,8,9,10,11,12].map(mo=>`<td style="text-align:center">${cell(arr,pm,mo)}</td>`).join('')}
+     <td class="num" style="text-align:center;font-weight:700">${arr.length} / ${pm.length}</td></tr>`).join('');
+
+  // ── 내역
+  $('#regBody').innerHTML = list.length ? list.map((a,i)=>{
+    const f=fixedCount(a);
+    const st = f.n===0 ? '<span class="chip g">해당 없음</span>'
+      : f.done>=f.n ? `<span class="chip g">완료 ${f.done}/${f.n}</span>`
+      : `<span class="chip b">미조치 ${f.n-f.done}/${f.n}</span>`;
+    const r=a.total?a.match/a.total*100:0;
+    const gi=S.audit.indexOf(a);
+    return `<tr><td class="num" style="color:var(--tx3)">${list.length-i}</td>
+      <td class="num">${esc(a.ym)}</td>
+      <td><span class="chip ${a.scope==='설비'?'g':'n'}">${esc(a.scope||'전수')}</span></td>
+      <td class="num">${fmt(a.at)}</td>
+      <td class="num">${a.total}</td><td class="num">${a.match}</td><td class="num">${a.miss}</td>
+      <td><span class="chip ${r>=98?'g':r>=90?'w':'b'}">${r.toFixed(1)}%</span></td>
+      <td>${st}</td><td>${esc(a.by||'—')}</td><td>${esc(a.cf||'—')}</td>
+      <td class="noprint"><button class="btn sm" onclick="showAudit(${gi})">상세</button></td></tr>`;
+  }).join('') : `<tr><td colspan="12" class="empty">${Y}년 실사 기록이 없습니다</td></tr>`;
+}
+function printReg(){
+  goTab('reg'); $('#regStamp').textContent=stampText();
+  $('#regSign').style.display='block';
+  setTimeout(()=>{ window.print(); setTimeout(()=>$('#regSign').style.display='none',400); },120);
+}
+function regCsv(){
+  const Y=$('#regYear').value;
+  const list=S.audit.filter(a=>(a.at||a.ym||'').startsWith(Y)).sort((x,y)=>(x.at||'').localeCompare(y.at||''));
+  dl(`금형위치_실사관리대장_${Y}.csv`,
+    [['점검월','범위','실시일시','대상','일치','불일치','일치율','불일치 조치','점검자','확인자'],
+     ...list.map(a=>{ const f=fixedCount(a);
+       return [a.ym,a.scope||'전수',fmt(a.at),a.total,a.match,a.miss,
+         (a.total?(a.match/a.total*100).toFixed(1):'0.0')+'%',
+         f.n?`${f.done}/${f.n} 조치`:'해당 없음',a.by||'',a.cf||'']; })]);
+}
+
 /* ══ 실사 결과 상세 ══ */
 function showAudit(i){
   const a=S.audit[i]; if(!a) return;
@@ -1298,6 +1473,7 @@ async function finishWalk(){
   renderAll(); renderAudit();
   toast(ng.length ? `실사 완료 — 불일치 ${ng.length}건 · 결과는 실사 점검 탭에서 확인` : `실사 완료 — ${ok}건 전 건 일치 · 결과는 실사 점검 탭`);
   if(!ng.length) goTab('audit');
+  renderReg();
 }
 
 /* ── 위치 보정 (불일치 해소) ── */
@@ -1458,6 +1634,7 @@ function tick(){
   if(fromQr) toast(S.rt?'설정이 적용되어 실시간 연결되었습니다':S.online?'설정이 적용되었습니다':'설정을 적용했으나 연결에 실패했습니다',!S.online);
   $('#cfMc').oninput=checkLists;
   ['q','fLoc','fAge'].forEach(id=>$('#'+id).oninput=$('#'+id).onchange=renderSearch);
+  $('#regYear').onchange=renderReg;
   ['hq','hy','hk','h4'].forEach(id=>$('#'+id).oninput=$('#'+id).onchange=renderHist);
   $$('.mode').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
   $('#swMc').onchange=showMounted;
