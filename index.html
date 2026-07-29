@@ -876,7 +876,7 @@ function renderBoard(){
 
   const onPress = S.master.filter(m=>m.loc && m.loc!==STORE);
   const inStore = S.master.filter(m=>m.loc===STORE);
-  const stale   = S.master.filter(m=>grade(m.at)>=2);
+  const staleP  = S.master.filter(m=>m.loc && m.loc!==STORE && grade(m.at)>=2);
   const noRack  = inStore.filter(m=>!m.rack);
 
   const byLoc={}; S.master.forEach(m=>{ if(!m.loc) return; (byLoc[m.loc] ||= []).push(m); });
@@ -918,7 +918,7 @@ function renderBoard(){
     <div class="kpi ${miss.length?'b':'g'}"><div class="k">위치 불일치</div><div class="v num">${miss.length}</div><div class="s">${miss.length?'보정 필요':'실사 일치'}</div></div>
     <div class="kpi ${dups.length?'b':'g'}"><div class="k">중복 장착</div><div class="v num">${dups.length}</div><div class="s">1호기 1금형 위반</div></div>
     <div class="kpi"><div class="k">보관장</div><div class="v num">${inStore.length}</div><div class="s">지정위치 미지정 ${noRack.length}건</div></div>
-    <div class="kpi ${stale.length?'b':'g'}"><div class="k">${AGE_BAD}일 초과 미갱신</div><div class="v num">${stale.length}</div><div class="s">실사 대조 필요</div></div>`;
+    <div class="kpi ${staleP.length?'b':'g'}"><div class="k">장착 ${AGE_BAD}일 초과</div><div class="v num">${staleP.length}</div><div class="s">${staleP.length?'반납 기록 누락 의심':'정상'}</div></div>`;
 
   $('#warnBox').innerHTML = dups.length ? `<div class="warnpanel">
     <h4>중복 장착 ${dups.length}개 호기</h4>
@@ -976,7 +976,8 @@ function renderSearch(){
   const q=$('#q').value.trim().toLowerCase(), fl=$('#fLoc').value, fa=$('#fAge').value;
   let rows=S.master.filter(m=>{
     if(q && !(m.pn+' '+m.mn).toLowerCase().includes(q)) return false;
-    if(fl && m.loc!==fl) return false;
+    if(fl==='__press__'){ if(!m.loc || m.loc===STORE) return false; }
+    else if(fl && m.loc!==fl) return false;
     if(fa!=='' && String(Math.min(grade(m.at),2))!==fa) return false;
     return true;
   }).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
@@ -1016,9 +1017,11 @@ function renderHist(){
 /* ═══ 이동 등록 ═══ */
 function fillSelects(){
   const locOpts = `<option value="${STORE}">${STORE}</option>` + MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
+  const fLocOpts = `<option value="">위치 전체</option><option value="__press__">설비 장착 전체</option>`
+    + `<option value="${STORE}">${STORE}</option>` + MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
   $('#mvLoc').innerHTML = locOpts;
   $('#mvRack').innerHTML = `<option value="">—</option>`+RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
-  $('#fLoc').innerHTML = `<option value="">위치 전체</option>`+locOpts;
+  const keepF=$('#fLoc').value; $('#fLoc').innerHTML = fLocOpts; if(keepF) $('#fLoc').value=keepF;
   $('#mvMold').innerHTML = S.master.slice().sort((a,b)=>a.pn.localeCompare(b.pn))
     .map(m=>`<option value="${esc(m.pn)}|${esc(m.mn)}">${esc(m.pn)}${m.mn?' · '+esc(m.mn):''}</option>`).join('');
   const yrs=[...new Set(S.hist.map(h=>(h.at||'').slice(0,4)).filter(Boolean))].sort().reverse();
@@ -1497,7 +1500,7 @@ function alarms(){
   const P=PLAN();
   const miss = S.master.filter(m=>m.ms);
   const dups = MACHINES.filter(mc=>S.master.filter(m=>m.loc===mc).length>1);
-  const stale = S.master.filter(m=>grade(m.at)>=2);
+  const stale = S.master.filter(m=>m.loc && m.loc!==STORE && grade(m.at)>=2);
   const AY=a=>(a.cd||a.ym||a.at||'').slice(0,4), AM=a=>Number((a.cd||a.ym||'').slice(5,7));
 
   if(miss.length) A.push({lv:'hi', ic:'!', t1:`위치 불일치 ${miss.length}건 미조치`,
@@ -1532,9 +1535,12 @@ function alarms(){
     }
   }
 
-  if(stale.length) A.push({lv:'low', ic:'i', t1:`${AGE_BAD}일 초과 미갱신 ${stale.length}건`,
-    t2:'오래 갱신되지 않은 금형입니다. 실사 때 우선 확인하세요.',
-    btn:['조회', "goTab('search');$('#fAge').value='2';renderSearch()"]});
+  if(stale.length){
+    const yr = stale.filter(m=>days(m.at)>365).length;
+    A.push({lv: yr?'mid':'low', ic:'!', t1:`설비 장착 ${AGE_BAD}일 초과 ${stale.length}건${yr?` (1년 초과 ${yr})`:''}`,
+      t2:'프레스에 오래 걸려 있는 것으로 기록된 금형입니다. 교체 후 반납 기록이 빠졌을 가능성이 큽니다.',
+      btn:['확인', "goTab('search');$('#fLoc').value='__press__';$('#fAge').value='2';renderSearch()"]});
+  }
 
   return A;
 }
