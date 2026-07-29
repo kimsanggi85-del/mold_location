@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
 :root{
   --bg:#14161a; --panel:#1c1f25; --panel2:#22262e; --line:#2e3440;
@@ -153,6 +154,9 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
 .dismount .dm{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .dismount .dp{font-size:13px;font-weight:600}
 .dismount .dd{font-size:11px;color:var(--tx3)}
+.dismount .cur{font-size:11px;color:var(--tx2);margin-bottom:8px}
+.dismount .cur strong{color:var(--amber)}
+.dismount.keep .cur strong{color:var(--ok)}
 .dismount .dsel{display:grid;grid-template-columns:1fr 150px;gap:8px}
 .dismount.keep{border-left-color:var(--ok);opacity:.72}
 .dismount.keep .dRack{visibility:hidden}
@@ -210,9 +214,41 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
 .bay.todo{opacity:.94}
 .dim{opacity:.32;pointer-events:none}
 
+/* ── 인쇄 / 캡처 머리글 ── */
+#printHead{display:none;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--line)}
+#printHead h2{font-size:20px;font-weight:700;letter-spacing:-.01em}
+#printHead .ph2{display:flex;justify-content:space-between;font-size:11.5px;color:var(--tx3);margin-top:4px}
+body.capture #printHead{display:block}
+body.capture header,body.capture nav,body.capture #auBar,body.capture #warnBox .wlist{display:none}
+body.capture main{padding:22px}
+
 @media print{
+  @page{size:A4 portrait;margin:11mm}
   body{background:#fff;color:#000}
-  header,nav,.bar,.btn,.noprint{display:none!important}
+  header,nav,.bar,.btn,.noprint,#auBar,.wlist{display:none!important}
+  #printHead{display:block!important;border-bottom:2px solid #333}
+  #printHead h2{color:#000}
+  #printHead .ph2{color:#555}
+  .page:not(.on){display:none!important}
+  .strip{grid-template-columns:repeat(5,1fr)!important;gap:6px}
+  .kpi{background:#fff;border:1px solid #999;padding:8px}
+  .kpi .k{color:#555;font-size:9px}.kpi .v{font-size:17px;color:#000}.kpi .s{font-size:8.5px;color:#666}
+  .bays{grid-template-columns:repeat(4,1fr)!important;gap:5px}
+  .bay{background:#fff;border:1px solid #999;padding:7px 8px 8px 10px;break-inside:avoid;transform:none!important}
+  .bay .no{font-size:19px;color:#000}.bay .mc{color:#555}
+  .bay .pn{font-size:11px;color:#000}.bay .mn,.bay .foot{color:#555;font-size:9px}
+  .bay .stripe{background:#333!important;width:3px}
+  .bay.s1 .stripe{background:#c88a00!important}.bay.s2 .stripe{background:#c00!important}
+  .bay .badge{background:#c00!important;color:#fff!important;animation:none}
+  .racks{grid-template-columns:repeat(6,1fr)!important;gap:5px}
+  .rack{background:#fff;border:1px solid #999;break-inside:avoid}
+  .rack .rc{color:#000;font-size:13px}.rack .rn,.rack li{color:#555;font-size:9px}
+  .secthead h2{color:#000}.secthead .rule{background:#999}.secthead .note{display:none}
+  .alarm{background:#fff!important;border:2px solid #c00}
+  .alarm::after{display:none}.alarm h3{color:#c00}.alarm .sub,.msrow{color:#333}
+  .msrow{background:#f7f7f7;border-color:#ccc}
+  .warnpanel{background:#fff;border:1.5px solid #c00}.warnpanel h4{color:#c00}.warnpanel p{color:#333}
+  .card,.tw{border:1px solid #999;background:#fff}
   #setupBox{display:block!important}
   #setupBox img{width:260px;height:260px}
   .card,.tw{border:1px solid #999;background:#fff}
@@ -258,6 +294,10 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
 <main>
   <!-- 현황판 -->
   <section class="page on" id="p-board">
+    <div id="printHead">
+      <h2>프레스 금형 장착 현황판</h2>
+      <div class="ph2"><span>㈜태진다이텍 품질관리팀</span><span id="phStamp"></span></div>
+    </div>
     <div id="auBar"></div>
     <div id="alarmBox"></div>
     <div class="strip" id="kpis"></div>
@@ -295,7 +335,7 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
         <h3>설비 금형 교체</h3>
         <div class="fld"><label>호기</label><select id="swMc"></select></div>
         <div style="margin-bottom:14px">
-          <label style="display:block;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;font-weight:600">탈착 금형 · 반납 위치</label>
+          <label style="display:block;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;font-weight:600">현재 장착 금형 · 처리 방법</label>
           <div id="swCur"></div>
         </div>
         <div class="fld"><label>신규 장착 금형</label><select id="swNew"></select></div>
@@ -309,7 +349,7 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
           <span>4M 변경 해당 — 초기유동관리 대상</span></label>
         <button class="btn pri" style="width:100%" onclick="saveSwap()">교체 등록</button>
         <p class="hint">탈착 금형은 반납 위치로, 신규 금형은 해당 호기로 <strong>동시에</strong> 기록됩니다.
-          <br>중복을 정리할 때는 <strong>실제로 걸려 있는 금형만 '유지'</strong>로 두고 나머지를 반납 처리하세요.
+          <br>기본값은 <strong>유지</strong>입니다. 실제로 내린 금형만 <strong>보관함(반납)</strong>으로 바꾸세요.
           보관 위치를 모르면 지정위치에서 <strong>'미확인'</strong>을 고르면 됩니다. 첫 실사 때 확정됩니다.</p>
       </div>
     </div>
@@ -595,7 +635,11 @@ function renderBoard(){
     : `<div class="aubar">
       <h3>현황판 실사</h3>
       <span class="prog">프레스 라인 ${new Set(tg.map(m=>m.loc)).size}호기 · 금형 ${tg.length}건을 현물과 대조합니다</span>
-      <div class="sp"><button class="btn pri sm" onclick="startWalk()">실사 시작</button></div></div>`;
+      <div class="sp">
+        <button class="btn sm" onclick="savePng()">화면 저장</button>
+        <button class="btn sm" onclick="printBoard()">인쇄</button>
+        <button class="btn pri sm" onclick="startWalk()">실사 시작</button>
+      </div></div>`;
   if(S.au.on) $('#auByIn').oninput=e=>S.au.by=e.target.value;
 
   $('#alarmBox').innerHTML = miss.length && !S.au.on ? `<div class="alarm" role="alert">
@@ -756,14 +800,15 @@ function showMounted(){
   const mc=$('#swMc').value, list=mountedOn(mc);
   const rackOpts=RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
   $('#swCur').innerHTML = list.length ? list.map((m,i)=>`
-    <div class="dismount" data-pn="${esc(m.pn)}" data-mn="${esc(m.mn)}">
+    <div class="dismount keep" data-pn="${esc(m.pn)}" data-mn="${esc(m.mn)}">
       <div class="dm"><span class="dp">${esc(m.pn)}</span><span class="dd num">${esc(m.mn||'—')} · ${fmt(m.at)}</span></div>
+      <div class="cur">현재 <strong>${esc(mc)}</strong> 장착 중</div>
       <div class="dsel">
         <select class="dLoc" onchange="dChg(this)">
-          <option value="__keep__">— 유지 (계속 장착) —</option>
-          <option value="${STORE}" selected>${STORE}</option>
+          <option value="__keep__" selected>— 유지 (계속 장착) —</option>
+          <option value="${STORE}">${STORE} (반납)</option>
           ${MACHINES.filter(x=>x!==mc).map(x=>`<option value="${x}">${x}</option>`).join('')}</select>
-        <select class="dRack"><option value="">지정위치 —</option>
+        <select class="dRack" disabled><option value="">지정위치 —</option>
           <option value="__unknown__">미확인 (실사 시 확정)</option>${rackOpts}</select>
       </div>
     </div>`).join('')
@@ -803,7 +848,11 @@ async function saveSwap(){
   }
   const nv=$('#swNew').value;
   if(!offs.length && !nv) return toast('처리할 내용이 없습니다',true);
-  if(kept.length>1 && !confirm(`유지로 둔 금형이 ${kept.length}건입니다.\n한 호기에는 보통 한 금형만 장착됩니다. 계속할까요?`)) return;
+  const willMount = kept.length + (nv?1:0);
+  if(willMount>1 && !confirm(
+      `등록 후 ${mc}에 금형이 ${willMount}건 남습니다.\n`+
+      `(유지 ${kept.length}건${nv?' + 신규 장착 1건':''})\n\n`+
+      `한 호기에는 보통 한 금형만 장착됩니다. 계속할까요?`)) return;
   if(S.cfg.pin){ const p=prompt('등록 PIN을 입력하세요'); if(p!==S.cfg.pin) return toast('PIN이 일치하지 않습니다',true); }
 
   const note=why+(m4?' / 4M 변경':'');
@@ -993,6 +1042,42 @@ function applySetupHash(){
     history.replaceState(null,'',location.pathname);   // 주소창에서 즉시 제거
     return true;
   }catch(e){ history.replaceState(null,'',location.pathname); return false; }
+}
+
+
+/* ══ 화면 저장 / 인쇄 ══ */
+function stampText(){
+  const n=new Date(), p=x=>String(x).padStart(2,'0');
+  const lu=lastUpdate();
+  return `출력일시 ${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}`
+       + `　·　최종 갱신 ${lu?fmt(lu):'기록 없음'}　·　출력 후 7일 경과 시 재출력`;
+}
+function fileStamp(){
+  const n=new Date(), p=x=>String(x).padStart(2,'0');
+  return `${n.getFullYear()}${p(n.getMonth()+1)}${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}`;
+}
+function printBoard(){
+  if(S.au.on) return toast('실사를 마치거나 취소한 뒤 인쇄하세요',true);
+  goTab('board'); $('#phStamp').textContent=stampText();
+  setTimeout(()=>window.print(),120);
+}
+async function savePng(){
+  if(S.au.on) return toast('실사를 마치거나 취소한 뒤 저장하세요',true);
+  if(typeof html2canvas==='undefined') return toast('저장 모듈을 불러오지 못했습니다. 인쇄를 이용하세요',true);
+  goTab('board'); $('#phStamp').textContent=stampText();
+  document.body.classList.add('capture');
+  toast('화면을 이미지로 만드는 중…');
+  try{
+    const el=$('#p-board');
+    const cv=await html2canvas(el,{backgroundColor:'#14161a',scale:2,useCORS:true,logging:false,
+      windowWidth:Math.max(el.scrollWidth,1280)});
+    const a=document.createElement('a');
+    a.download=`금형위치현황판_${fileStamp()}.png`;
+    a.href=cv.toDataURL('image/png');
+    a.click();
+    toast('이미지를 저장했습니다');
+  }catch(e){ console.error(e); toast('저장 실패 — 인쇄를 이용하세요',true); }
+  finally{ document.body.classList.remove('capture'); }
 }
 
 /* ══ 설비 · 보관장 목록 관리 ══ */
@@ -1292,6 +1377,7 @@ function tick(){
   ['hq','hy','hk','h4'].forEach(id=>$('#'+id).oninput=$('#'+id).onchange=renderHist);
   $$('.mode').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
   $('#swMc').onchange=showMounted;
+  window.addEventListener('beforeprint',()=>{ const e=$('#phStamp'); if(e) e.textContent=stampText(); });
   tick(); setInterval(tick,1000);
   // 실시간 구독이 끊긴 경우에만 동작하는 백업 폴링
   setInterval(async()=>{
