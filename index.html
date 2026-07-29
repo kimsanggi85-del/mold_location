@@ -423,12 +423,12 @@ body.capture main{padding:22px}
     <div class="bar">
       <input type="text" id="q" placeholder="품번 또는 금형번호 검색">
       <select id="fLoc"><option value="">위치 전체</option></select>
-      <select id="fAge"><option value="">경과일 전체</option><option value="0">30일 이내</option><option value="1">31~60일</option><option value="2">60일 초과</option></select>
+      <select id="fAge"><option value="">경과일 전체</option><option value="0">30일 이내</option><option value="1">31~60일</option><option value="2">60일 초과</option><option value="F">고정 장착만</option></select>
       <button class="btn" onclick="exportCsv()">CSV 내려받기</button>
       <span style="margin-left:auto;color:var(--tx3);font-size:12px" id="qCnt"></span>
     </div>
     <div class="tw"><table>
-      <thead><tr><th>품번</th><th>금형번호</th><th>현재 위치</th><th>지정 보관위치</th><th>최종 갱신</th><th>경과</th><th></th></tr></thead>
+      <thead><tr><th>품번</th><th>금형번호</th><th>현재 위치</th><th>지정 보관위치</th><th>최종 갱신</th><th>경과</th><th style="width:64px">고정</th><th></th></tr></thead>
       <tbody id="qBody"></tbody>
     </table></div>
   </section>
@@ -733,7 +733,7 @@ function buildTabs(){
 /* ═══ 내장 시드 → 초기 표시 ═══ */
 function loadSeed(){
   if(!SEED.m.length) return;
-  S.master = SEED.m.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],
+  S.master = SEED.m.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],fix:!!r[5],
     ms:false,msLoc:'',msRack:'',msAt:'',msBy:'',msYm:''}));
   S.hist = SEED.h.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],by:'',
     kind:(r[2]&&r[2]!==STORE)?'장착':'반납',note:'',m4:false}));
@@ -876,7 +876,8 @@ function renderBoard(){
 
   const onPress = S.master.filter(m=>m.loc && m.loc!==STORE);
   const inStore = S.master.filter(m=>m.loc===STORE);
-  const staleP  = S.master.filter(m=>m.loc && m.loc!==STORE && grade(m.at)>=2);
+  const staleP  = S.master.filter(m=>m.loc && m.loc!==STORE && !m.fix && grade(m.at)>=2);
+  const fixed   = S.master.filter(m=>m.fix);
   const noRack  = inStore.filter(m=>!m.rack);
 
   const byLoc={}; S.master.forEach(m=>{ if(!m.loc) return; (byLoc[m.loc] ||= []).push(m); });
@@ -918,7 +919,7 @@ function renderBoard(){
     <div class="kpi ${miss.length?'b':'g'}"><div class="k">위치 불일치</div><div class="v num">${miss.length}</div><div class="s">${miss.length?'보정 필요':'실사 일치'}</div></div>
     <div class="kpi ${dups.length?'b':'g'}"><div class="k">중복 장착</div><div class="v num">${dups.length}</div><div class="s">1호기 1금형 위반</div></div>
     <div class="kpi"><div class="k">보관장</div><div class="v num">${inStore.length}</div><div class="s">지정위치 미지정 ${noRack.length}건</div></div>
-    <div class="kpi ${staleP.length?'b':'g'}"><div class="k">장착 ${AGE_BAD}일 초과</div><div class="v num">${staleP.length}</div><div class="s">${staleP.length?'반납 기록 누락 의심':'정상'}</div></div>`;
+    <div class="kpi ${staleP.length?'b':'g'}"><div class="k">장착 ${AGE_BAD}일 초과</div><div class="v num">${staleP.length}</div><div class="s">${staleP.length?'반납 기록 누락 의심':`정상 · 고정 ${fixed.length}건 제외`}</div></div>`;
 
   $('#warnBox').innerHTML = dups.length ? `<div class="warnpanel">
     <h4>중복 장착 ${dups.length}개 호기</h4>
@@ -936,8 +937,8 @@ function renderBoard(){
     if(!top) return `<button class="bay empty" data-loc="${esc(mc)}">
       <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
       <div class="vac">장착 금형 없음</div></button>`;
-    const g=grade(top.at), d=days(top.at);
-    const pct=Math.min(100,Math.round((d??90)/90*100));
+    const g=top.fix?0:grade(top.at), d=days(top.at);
+    const pct=top.fix?100:Math.min(100,Math.round((d??90)/90*100));
     const mrow=list.filter(x=>x.ms);
     return `<button class="bay s${g}${mrow.length?' ms':''}" data-loc="${esc(mc)}">
       <span class="stripe"></span>
@@ -947,7 +948,8 @@ function renderBoard(){
       <div class="pn" title="${esc(top.pn)}">${esc(top.pn)}</div>
       <div class="mn num">${esc(top.mn||'—')}</div>
       ${mrow.length?`<div class="msnote">실사 확인 위치 · ${esc(mrow[0].msLoc)}${mrow[0].msRack?' '+esc(mrow[0].msRack):''}</div>`:''}
-      <div class="foot"><span>${fmt(top.at)}</span><span class="age num">${d===null?'—':d+'일'}</span></div>
+      <div class="foot"><span>${fmt(top.at)}</span>
+        <span class="age num">${top.fix?'<span class="chip g" style="font-size:9.5px">고정</span>':(d===null?'—':d+'일')}</span></div>
       <div class="agebar"><i style="width:${pct}%"></i></div>
     </button>`;
   }).join('');
@@ -978,19 +980,22 @@ function renderSearch(){
     if(q && !(m.pn+' '+m.mn).toLowerCase().includes(q)) return false;
     if(fl==='__press__'){ if(!m.loc || m.loc===STORE) return false; }
     else if(fl && m.loc!==fl) return false;
-    if(fa!=='' && String(Math.min(grade(m.at),2))!==fa) return false;
+    if(fa==='F'){ if(!m.fix) return false; }
+    else if(fa!==''){ if(m.fix) return false; if(String(Math.min(grade(m.at),2))!==fa) return false; }
     return true;
   }).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
   $('#qCnt').textContent = `${rows.length}건`;
   $('#qBody').innerHTML = rows.length ? rows.map(m=>{
-    const g=grade(m.at), d=days(m.at);
+    const g=m.fix?0:grade(m.at), d=days(m.at);
     return `<tr><td>${esc(m.pn)}</td><td class="num">${esc(m.mn||'—')}</td>
       <td><span class="chip ${m.ms?'b':m.loc===STORE?'n':'g'}">${esc(m.loc||'—')}</span>
           ${m.ms?`<span class="chip b" title="실사 확인 ${esc(m.msLoc)}">불일치</span>`:''}</td>
       <td class="num" style="color:var(--tx3)">${esc(m.rack||'—')}</td><td class="num">${fmt(m.at)}</td>
-      <td><span class="chip ${['g','w','b','b'][g]}">${d===null?'없음':d+'일'}</span></td>
+      <td>${m.fix?'<span class="chip n">고정</span>':`<span class="chip ${['g','w','b','b'][g]}">${d===null?'없음':d+'일'}</span>`}</td>
+      <td><button class="btn sm ${m.fix?'':''}" onclick="toggleFix('${esc(m.pn)}|${esc(m.mn)}')"
+            title="설비 전용 고정 장착 여부">${m.fix?'해제':'지정'}</button></td>
       <td><button class="btn sm" onclick="openMove('${esc(m.pn)}|${esc(m.mn)}')">이동</button></td></tr>`;
-  }).join('') : `<tr><td colspan="7" class="empty">조건에 맞는 금형이 없습니다</td></tr>`;
+  }).join('') : `<tr><td colspan="8" class="empty">조건에 맞는 금형이 없습니다</td></tr>`;
 }
 
 /* ═══ 렌더: 이력 ═══ */
@@ -1492,6 +1497,30 @@ async function savePng(which){
 }
 
 
+async function toggleFix(k){
+  const [pn,mn]=k.split('|');
+  const m=S.master.find(x=>x.pn===pn&&(x.mn||'')===(mn||''));
+  if(!m) return;
+  if(!m.loc || m.loc===STORE) return toast('설비에 장착된 금형만 고정 지정할 수 있습니다',true);
+  if(!needPin()) return;
+  m.fix=!m.fix;
+  const ok=await saveMaster();
+  toast(`${pn} ${m.fix?'고정 장착으로 지정했습니다':'고정 해제했습니다'}`, !ok);
+  renderAll();
+}
+async function fixAllStale(){
+  const t=S.master.filter(m=>m.loc && m.loc!==STORE && !m.fix && grade(m.at)>=2);
+  if(!t.length) return toast('대상이 없습니다');
+  if(!confirm(`설비 장착 ${AGE_BAD}일 초과 ${t.length}건을 모두 고정 장착으로 지정합니다.\n\n`
+    +t.slice(0,8).map(m=>`· ${m.loc}  ${m.pn}`).join('\n')+(t.length>8?`\n외 ${t.length-8}건`:'')
+    +'\n\n계속할까요?')) return;
+  if(!needPin()) return;
+  t.forEach(m=>m.fix=true);
+  const ok=await saveMaster();
+  toast(ok?`${t.length}건을 고정 장착으로 지정했습니다`:'저장 실패', !ok);
+  renderAll();
+}
+
 /* ══ 알람 : 갱신 · 점검 기한 · 미조치 ══ */
 const PLAN = () => ({ day: (S.plan?.day ?? 25), full: (S.plan?.full ?? [6,12]) });
 
@@ -1500,7 +1529,7 @@ function alarms(){
   const P=PLAN();
   const miss = S.master.filter(m=>m.ms);
   const dups = MACHINES.filter(mc=>S.master.filter(m=>m.loc===mc).length>1);
-  const stale = S.master.filter(m=>m.loc && m.loc!==STORE && grade(m.at)>=2);
+  const stale = S.master.filter(m=>m.loc && m.loc!==STORE && !m.fix && grade(m.at)>=2);
   const AY=a=>(a.cd||a.ym||a.at||'').slice(0,4), AM=a=>Number((a.cd||a.ym||'').slice(5,7));
 
   if(miss.length) A.push({lv:'hi', ic:'!', t1:`위치 불일치 ${miss.length}건 미조치`,
@@ -1539,7 +1568,8 @@ function alarms(){
     const yr = stale.filter(m=>days(m.at)>365).length;
     A.push({lv: yr?'mid':'low', ic:'!', t1:`설비 장착 ${AGE_BAD}일 초과 ${stale.length}건${yr?` (1년 초과 ${yr})`:''}`,
       t2:'프레스에 오래 걸려 있는 것으로 기록된 금형입니다. 교체 후 반납 기록이 빠졌을 가능성이 큽니다.',
-      btn:['확인', "goTab('search');$('#fLoc').value='__press__';$('#fAge').value='2';renderSearch()"]});
+      btn:['확인', "goTab('search');$('#fLoc').value='__press__';$('#fAge').value='2';renderSearch()"],
+      btn2:['전용 금형으로 일괄 지정','fixAllStale()']});
   }
 
   return A;
@@ -1552,6 +1582,7 @@ function renderAlarms(miss, dups){
   box.innerHTML = A.map(a=>`<div class="al ${a.lv}" role="alert">
       <span class="ico">${a.ic}</span>
       <div class="tx"><div class="t1">${a.t1}</div><div class="t2">${a.t2}</div></div>
+      ${a.btn2?`<button class="btn sm" onclick="${a.btn2[1]}">${a.btn2[0]}</button>`:''}
       ${a.btn?`<button class="btn sm" onclick="${a.btn[1]}">${a.btn[0]}</button>`:''}
     </div>`).join('');
   if(miss?.length) box.insertAdjacentHTML('beforeend', msPanel(miss));
@@ -1836,7 +1867,7 @@ async function pushSeed(){
 계속할까요?`)) return;
   if(!needPin()) return;
   toast('업로드 중…');
-  S.master = SEED.m.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],
+  S.master = SEED.m.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],fix:!!r[5],
     ms:false,msLoc:'',msRack:'',msAt:'',msBy:'',msYm:''}));
   S.hist = SEED.h.map(r=>({pn:r[0],mn:r[1],loc:r[2],rack:r[3],at:r[4],by:'엑셀 이관',
     kind:(r[2]&&r[2]!==STORE)?'장착':'반납',note:'',m4:false}));
