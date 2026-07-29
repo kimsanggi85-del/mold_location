@@ -193,6 +193,25 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
 .bay .msnote{font-size:10.5px;color:#ff9b98;margin-top:6px;font-weight:600}
 .rack.ms{border-color:rgba(224,82,79,.5)}
 
+/* ── 통합 알람 ── */
+.alarms{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.al{display:flex;align-items:center;gap:12px;border-radius:9px;padding:12px 15px;border:1px solid;position:relative;overflow:hidden}
+.al .ico{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
+.al .tx{flex:1;min-width:0}
+.al .t1{font-size:13px;font-weight:700;margin-bottom:2px}
+.al .t2{font-size:11.5px;opacity:.85;line-height:1.5}
+.al.hi{background:rgba(224,82,79,.10);border-color:rgba(224,82,79,.45);color:#ff9b98}
+.al.hi .ico{background:var(--bad);color:#fff}
+.al.hi::after{content:'';position:absolute;inset:0;background:rgba(224,82,79,.10);opacity:0;animation:flash 2.6s ease-in-out infinite;pointer-events:none}
+.al.mid{background:rgba(217,154,43,.10);border-color:rgba(217,154,43,.42);color:#f0c065}
+.al.mid .ico{background:var(--warn);color:#241a04}
+.al.low{background:rgba(91,141,184,.09);border-color:rgba(91,141,184,.35);color:#9cc3e0}
+.al.low .ico{background:var(--steel);color:#08131c}
+.al .btn{flex:none}
+@media(prefers-reduced-motion:reduce){.al.hi::after{animation:none;opacity:.3}}
+.tab .cnt.alarm{background:var(--bad);color:#fff}
+.toast.big{padding:14px 22px;font-size:13.5px;max-width:90vw}
+
 /* ── 현황판 실사 모드 ── */
 .aubar{background:linear-gradient(90deg,rgba(255,176,32,.14),rgba(255,176,32,.05));border:1px solid rgba(255,176,32,.4);border-left:4px solid var(--amber);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .aubar h3{font-size:14px;font-weight:700;color:var(--amber)}
@@ -390,7 +409,7 @@ body.capture main{padding:22px}
       <div class="ph2"><span>㈜태진다이텍 품질관리팀</span><span id="phStamp"></span></div>
     </div>
     <div id="auBar"></div>
-    <div id="alarmBox"></div>
+    <div class="alarms" id="alarmBox"></div>
     <div class="strip" id="kpis"></div>
     <div class="secthead"><h2>프레스 라인</h2><div class="rule"></div><span class="note">타일을 누르면 금형을 이동 등록합니다</span></div>
     <div class="bays" id="bays"></div>
@@ -651,7 +670,7 @@ const store = {
 };
 
 /* ═══ 상태 ═══ */
-let S = { master:[], hist:[], audit:[], users:[], me:'', cfg:{pin:''}, online:false, emptyMaster:false, stamp:'',
+let S = { master:[], hist:[], audit:[], users:[], me:'', plan:{day:25,full:[6,12]}, cfg:{pin:''}, online:false, emptyMaster:false, stamp:'',
   au:{on:false, ym:'', cd:'', by:'', cf:'', res:{}} };
 const today=()=>new Date().toISOString().slice(0,10);
 const key=m=>m.pn+'|'+m.mn;
@@ -824,8 +843,19 @@ function startPoll(){
   _poll=setInterval(async()=>{
     const before=S.stamp;
     await fetchAll();
-    if(S.stamp!==before){ renderAll(); renderAudit(); renderReg();
-      toast('다른 기기의 변경 내용을 반영했습니다'); }
+    if(S.stamp!==before){
+      const b4=JSON.parse(before||'[0,0,0,""]');
+      renderAll(); renderAudit(); renderReg();
+      const dh=S.hist.length-(b4[1]||0), da=S.audit.length-(b4[2]||0);
+      const msg = da>0 ? `실사 기록 ${da}건이 등록되었습니다`
+                : dh>0 ? `금형 위치 ${dh}건이 변경되었습니다`
+                : '다른 기기의 변경 내용을 반영했습니다';
+      toast(msg);
+      if(dh>0||da>0){
+        push('금형 위치 현황판', msg + (S.hist[S.hist.length-1]
+          ? `\n${S.hist[S.hist.length-1].pn} → ${S.hist[S.hist.length-1].loc}` : ''));
+      }
+    }
     else renderBoard();
   }, 45000);
 }
@@ -879,22 +909,6 @@ function renderBoard(){
     $('#auCfIn').oninput=e=>S.au.cf=e.target.value;
     $('#auCdIn').onchange=e=>S.au.cd=e.target.value; }
 
-  $('#alarmBox').innerHTML = miss.length && !S.au.on ? `<div class="alarm" role="alert">
-    <div class="ah"><span class="sig"></span><h3>위치 불일치 ${miss.length}건</h3></div>
-    <div class="sub">${esc(miss[0].msYm||'')} 실사에서 현황판 위치와 실물 위치가 다른 것으로 확인되었습니다.
-      현물을 다시 확인한 뒤 보정하면 이동 이력에 <strong>실사보정</strong>으로 기록되고 알람이 해제됩니다.</div>
-    <div class="mslist">${miss.map(m=>`
-      <div class="msrow">
-        <div><div class="mp">${esc(m.pn)}</div><div class="mm num">${esc(m.mn||'—')}</div></div>
-        <div class="arrow">
-          <span class="from">현황판 ${esc(m.loc||'—')}${m.rack?' '+esc(m.rack):''}</span>
-          <span style="color:var(--tx3)">→</span>
-          <span class="to">실물 ${esc(m.msLoc||'—')}${m.msRack?' '+esc(m.msRack):''}</span>
-        </div>
-        <span class="meta">${fmt(m.msAt)} · ${esc(m.msBy||'—')}</span>
-        <button class="btn sm" onclick="fixMs('${esc(m.pn)}|${esc(m.mn)}')">위치 보정</button>
-      </div>`).join('')}</div>
-  </div>` : '';
   $('#kpis').style.display = S.au.on?'none':'';
   $('#warnBox').style.display = S.au.on?'none':'';
 
@@ -951,8 +965,10 @@ function renderBoard(){
       ${l.length>7?`<li style="color:var(--tx3)">외 ${l.length-7}건</li>`:''}</ul></div>`;
   }).join('');
 
-  TABS.forEach(([k])=>{ const e=$('#tc-'+k); if(!e) return;
+  TABS.forEach(([k])=>{ if(k==='board') return;
+    const e=$('#tc-'+k); if(!e) return;
     e.textContent = k==='search'?S.master.length : k==='hist'?S.hist.length : k==='audit'?(S.audit.length||'') : ''; });
+  renderAlarms(miss, dups);
 }
 
 /* ═══ 렌더: 조회 ═══ */
@@ -1472,15 +1488,144 @@ async function savePng(which){
   finally{ document.body.classList.remove('capture'); }
 }
 
+
+/* ══ 알람 : 갱신 · 점검 기한 · 미조치 ══ */
+const PLAN = () => ({ day: (S.plan?.day ?? 25), full: (S.plan?.full ?? [6,12]) });
+
+function alarms(){
+  const A=[], now=new Date(), Y=String(now.getFullYear()), M=now.getMonth()+1, D=now.getDate();
+  const P=PLAN();
+  const miss = S.master.filter(m=>m.ms);
+  const dups = MACHINES.filter(mc=>S.master.filter(m=>m.loc===mc).length>1);
+  const stale = S.master.filter(m=>grade(m.at)>=2);
+  const AY=a=>(a.cd||a.ym||a.at||'').slice(0,4), AM=a=>Number((a.cd||a.ym||'').slice(5,7));
+
+  if(miss.length) A.push({lv:'hi', ic:'!', t1:`위치 불일치 ${miss.length}건 미조치`,
+    t2:`${miss[0].msYm||''} 실사에서 확인된 불일치가 아직 보정되지 않았습니다.`,
+    btn:['보정하기', "goTab('board')"]});
+
+  if(dups.length) A.push({lv:'hi', ic:'!', t1:`중복 장착 ${dups.length}개 호기`,
+    t2:`${dups.slice(0,4).join(', ')}${dups.length>4?' 외':''} — 한 호기에 두 건 이상이 장착 상태입니다.`});
+
+  // 월간 설비 실사
+  const eqThis = S.audit.some(a=>a.scope==='설비' && AY(a)===Y && AM(a)===M);
+  if(!eqThis){
+    const left = P.day - D;
+    if(left < 0) A.push({lv:'mid', ic:'!', t1:`${M}월 설비 실사 미실시 · 기한 ${-left}일 경과`,
+      t2:`매월 ${P.day}일까지 프레스 라인 대조점검을 실시합니다. 대상 ${S.master.filter(m=>m.loc&&m.loc!==STORE).length}건.`,
+      btn:['실사 시작', 'startWalk()']});
+    else if(left <= 7) A.push({lv:'mid', ic:'D', t1:`${M}월 설비 실사 D-${left}`,
+      t2:`${P.day}일까지 프레스 라인 대조점검을 마쳐야 합니다.`,
+      btn:['실사 시작', 'startWalk()']});
+  }
+
+  // 반기 전수 실사
+  if(P.full.includes(M)){
+    const fullThis = S.audit.some(a=>a.scope!=='설비' && AY(a)===Y && AM(a)===M);
+    if(!fullThis){
+      const eom = new Date(now.getFullYear(), M, 0).getDate();
+      const left = eom - D;
+      A.push({lv: left<=7?'mid':'low', ic:'D',
+        t1:`${M}월 전수 실사 ${left<=0?'기한 경과':'D-'+left}`,
+        t2:`보관장 포함 ${S.master.length}건 대조점검 대상 월입니다.`,
+        btn:['점검표 열기', "goTab('audit')"]});
+    }
+  }
+
+  if(stale.length) A.push({lv:'low', ic:'i', t1:`${AGE_BAD}일 초과 미갱신 ${stale.length}건`,
+    t2:'오래 갱신되지 않은 금형입니다. 실사 때 우선 확인하세요.',
+    btn:['조회', "goTab('search');$('#fAge').value='2';renderSearch()"]});
+
+  return A;
+}
+
+function renderAlarms(miss, dups){
+  const box=$('#alarmBox'); if(!box) return;
+  if(S.au.on){ box.innerHTML=''; return; }
+  const A=alarms();
+  box.innerHTML = A.map(a=>`<div class="al ${a.lv}" role="alert">
+      <span class="ico">${a.ic}</span>
+      <div class="tx"><div class="t1">${a.t1}</div><div class="t2">${a.t2}</div></div>
+      ${a.btn?`<button class="btn sm" onclick="${a.btn[1]}">${a.btn[0]}</button>`:''}
+    </div>`).join('');
+  if(miss?.length) box.insertAdjacentHTML('beforeend', msPanel(miss));
+  const n=A.filter(x=>x.lv!=='low').length;
+  const tb=$('#tc-board');
+  if(tb){ tb.textContent = n?n:''; tb.className='cnt'+(n?' alarm':''); }
+  document.title = (n?`(${n}) `:'') + '금형 위치 현황판';
+  notifyDue(A);
+}
+
+function msPanel(miss){
+  return `<div class="alarm" role="alert" style="margin:0">
+    <div class="ah"><span class="sig"></span><h3>불일치 상세</h3></div>
+    <div class="mslist">${miss.map(m=>`
+      <div class="msrow">
+        <div><div class="mp">${esc(m.pn)}</div><div class="mm num">${esc(m.mn||'—')}</div></div>
+        <div class="arrow">
+          <span class="from">현황판 ${esc(m.loc||'—')}</span>
+          <span style="color:var(--tx3)">→</span>
+          <span class="to">실물 ${esc(m.msLoc||'—')}${m.msRack?' '+esc(m.msRack):''}</span>
+        </div>
+        <span class="meta">${fmt(m.msAt)} · ${esc(m.msBy||'—')}</span>
+        <button class="btn sm" onclick="fixMs('${esc(m.pn)}|${esc(m.mn)}')">위치 보정</button>
+      </div>`).join('')}</div></div>`;
+}
+
+/* ── 브라우저 알림 ── */
+function canNotify(){ return typeof Notification!=='undefined' && Notification.permission==='granted'; }
+async function askNotify(){
+  if(typeof Notification==='undefined') return toast('이 브라우저는 알림을 지원하지 않습니다',true);
+  const r=await Notification.requestPermission();
+  toast(r==='granted'?'알림이 켜졌습니다':'알림이 거부되었습니다', r!=='granted');
+  renderNotiBtn();
+}
+function renderNotiBtn(){
+  const e=$('#notiBtn'); if(!e) return;
+  const on=canNotify();
+  e.textContent = on?'알림 켜짐':'알림 켜기';
+  e.className='btn'+(on?'':' pri');
+  e.disabled = on;
+}
+function push(title, body){
+  if(!canNotify()) return;
+  try{ new Notification(title,{body, tag:'moldloc', renotify:false}); }catch(e){}
+}
+let _duePushed='';
+function notifyDue(A){
+  const due=A.filter(a=>a.lv!=='low');
+  if(!due.length) return;
+  const sig=due.map(a=>a.t1).join('|')+new Date().toDateString();
+  if(sig===_duePushed) return;
+  _duePushed=sig;
+  push('금형 위치 현황판', due.map(a=>'· '+a.t1).join('\n'));
+}
+
+async function savePlan(){
+  if(!needPin()) return;
+  const mc=$('#cfMc').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const rk=$('#cfRk').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const day=Number($('#pDay').value)||25;
+  const full=($('#pFull').value||'6,12').split(',').map(x=>Number(x.trim())).filter(x=>x>=1&&x<=12);
+  S.plan={day, full};
+  const ok=await saveConfig({machines:mc.length?mc:MACHINES, racks:rk.length?rk:RACKS, planDay:day, fullMonths:full});
+  toast(ok?'점검 일정을 저장했습니다':'저장 실패 — 연결을 확인하세요', !ok);
+  renderBoard();
+}
+
 /* ══ 설비 · 보관장 목록 관리 ══ */
 function applyLists(o){
   if(!o) return;
   if(Array.isArray(o.machines) && o.machines.length) MACHINES=o.machines;
   if(Array.isArray(o.racks) && o.racks.length) RACKS=o.racks;
+  S.plan = { day: Number(o.planDay)||25, full: Array.isArray(o.fullMonths)&&o.fullMonths.length?o.fullMonths:[6,12] };
 }
 function fillLists(){
   $('#cfMc').value=MACHINES.join('\n');
   $('#cfRk').value=RACKS.join('\n');
+  if($('#pDay')) $('#pDay').value=S.plan.day;
+  if($('#pFull')) $('#pFull').value=S.plan.full.join(',');
+  renderNotiBtn();
   checkLists();
 }
 function checkLists(){
@@ -1499,7 +1644,9 @@ async function saveLists(){
   const orphan=used.filter(u=>!mc.includes(u));
   if(orphan.length && !confirm(`목록에 없는 위치에 금형이 있습니다:\n${orphan.join(', ')}\n\n저장하면 해당 금형이 현황판에서 보이지 않습니다. 계속할까요?`)) return;
   MACHINES=mc; RACKS=rk;
-  const okSaved = await saveConfig({machines:mc, racks:rk});
+  const okSaved = await saveConfig({machines:mc, racks:rk,
+    planDay:Number($('#pDay').value)||25,
+    fullMonths:($('#pFull').value||'6,12').split(',').map(x=>Number(x.trim())).filter(x=>x>=1&&x<=12)});
   toast(okSaved ? '목록을 저장했습니다 — 모든 기기에 반영됩니다'
                 : '목록을 저장했습니다 (서버 미연결 · 이 기기에만 적용)', !okSaved);
   renderAll(); checkLists();
