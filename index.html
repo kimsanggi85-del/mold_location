@@ -372,6 +372,7 @@ body.capture main{padding:22px}
       <div class="livebox">
         <div><div class="lbl">데이터 출처</div><div class="val" id="srcLbl" style="font-size:12px">—</div></div>
       </div>
+      <button class="livebox" id="meBox" onclick="S.me?logout():needPin()" style="cursor:pointer;text-align:left"></button>
       <div class="livebox">
         <div><div class="lbl">현재 시각</div><div class="val num" id="clock">—</div></div>
       </div>
@@ -430,7 +431,7 @@ body.capture main{padding:22px}
         </div>
         <div class="fld"><label>신규 장착 금형</label><select id="swNew"></select></div>
         <div class="row">
-          <div class="fld"><label>담당자</label><input type="text" id="swBy" placeholder="이름"></div>
+          <div class="fld"><label>담당자</label><input type="text" id="swBy" placeholder="PIN 인증 시 자동 입력" readonly></div>
           <div class="fld"><label>교체 사유</label><select id="swWhy">
             <option>생산 계획 변경</option><option>금형 수리</option><option>금형 점검</option>
             <option>품질 이상</option><option>설비 수리</option><option>기타</option></select></div>
@@ -453,7 +454,7 @@ body.capture main{padding:22px}
           <div class="fld"><label>이동 위치</label><select id="mvLoc"></select></div>
           <div class="fld"><label>지정 보관위치</label><select id="mvRack"></select></div>
         </div>
-        <div class="fld"><label>담당자</label><input type="text" id="mvBy" placeholder="이름"></div>
+        <div class="fld"><label>담당자</label><input type="text" id="mvBy" placeholder="PIN 인증 시 자동 입력" readonly></div>
         <button class="btn pri" style="width:100%" onclick="saveMove()">이동 등록</button>
         <p class="hint">등록 시각은 서버에서 기록됩니다. 등록된 이력은 수정·삭제할 수 없습니다.</p>
       </div>
@@ -561,7 +562,13 @@ body.capture main{padding:22px}
         <h3>Supabase 연결</h3>
         <div class="fld"><label>연결 상태</label>
           <div id="sbInfo" style="background:#15181d;border:1px solid var(--line);border-radius:7px;padding:11px;font-size:12.5px;color:var(--tx2)"></div></div>
-        <div class="fld"><label>등록 PIN</label><input type="password" id="cPin" placeholder="이동 등록 시 요구할 PIN"></div>
+        <div class="fld"><label>담당자 인증</label>
+          <div style="background:#15181d;border:1px solid var(--line);border-radius:7px;padding:11px;font-size:12.5px;color:var(--tx2)">
+            사내 공용 담당자·PIN 마스터(<code>user_pins</code>)를 사용합니다. 등록 시 본인 PIN을 입력하면
+            담당자 이름이 자동으로 기록됩니다. 금형 수리관리 시스템과 같은 PIN입니다.
+            <div id="uCnt" style="color:var(--tx3);margin-top:6px"></div>
+          </div></div>
+        <div class="fld" style="display:none"><label>등록 PIN</label><input type="password" id="cPin" placeholder="이동 등록 시 요구할 PIN"></div>
         <div style="display:flex;gap:9px;flex-wrap:wrap">
           <button class="btn pri" onclick="saveCfg()">저장 후 연결</button>
           <button class="btn" onclick="pushSeed()">서버 데이터 재업로드</button>
@@ -644,7 +651,7 @@ const store = {
 };
 
 /* ═══ 상태 ═══ */
-let S = { master:[], hist:[], audit:[], cfg:{pin:''}, online:false, emptyMaster:false, stamp:'',
+let S = { master:[], hist:[], audit:[], users:[], me:'', cfg:{pin:''}, online:false, emptyMaster:false, stamp:'',
   au:{on:false, ym:'', cd:'', by:'', cf:'', res:{}} };
 const today=()=>new Date().toISOString().slice(0,10);
 const key=m=>m.pn+'|'+m.mn;
@@ -667,18 +674,28 @@ function grade(d){ const n=days(d); if(n===null) return 3; if(n<=AGE_WARN) retur
 function toast(m,err){ const t=$('#toast'); t.textContent=m; t.className='toast on'+(err?' err':'');
   clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2600); }
 
-/* 쓰기 작업 인증 : 파일에 PIN을 넣지 않으므로 아는 사람만 등록 가능 */
-let _pinOk=false;
+/* 쓰기 작업 인증 : 사내 공용 담당자·PIN 마스터(user_pins) 대조 */
+function userByPin(pin){ return S.users.find(u=>String(u.pin)===String(pin).trim()); }
+function authed(){ return !!S.me; }
 function needPin(){
-  if(_pinOk) return true;
-  const p=prompt('등록 PIN을 입력하세요');
+  if(S.me) return true;
+  if(!S.users.length){ toast('담당자 목록을 불러오지 못했습니다. 연결을 확인하세요',true); return false; }
+  const p = prompt('본인 PIN을 입력하세요');
   if(p===null) return false;
-  if(S.cfg.pin ? p===S.cfg.pin : !!p.trim()){
-    if(!S.cfg.pin){ S.cfg.pin=p.trim(); store.set('moldloc_cfg',JSON.stringify(S.cfg)); }
-    _pinOk=true; return true;
-  }
-  toast('PIN이 일치하지 않습니다',true); return false;
+  const u = userByPin(p);
+  if(!u){ toast('등록되지 않은 PIN입니다',true); return false; }
+  S.me = u.name;
+  try{ store.set('ml:me', u.name); }catch(e){}
+  renderMe(); toast(`${u.name} (${u.dept||''}) 확인되었습니다`);
+  return true;
 }
+function renderMe(){
+  const e=$('#meBox'); if(!e) return;
+  e.innerHTML = S.me
+    ? `<div class="lbl">담당자</div><div class="val" style="font-size:12px;color:var(--ok)">${esc(S.me)}</div>`
+    : `<div class="lbl">담당자</div><div class="val" style="font-size:12px;color:var(--tx3)">미인증</div>`;
+}
+function logout(){ S.me=''; try{store.set('ml:me','');}catch(e){} renderMe(); toast('인증을 해제했습니다'); }
 
 /* ═══ 탭 ═══ */
 const TABS=[['board','현황판'],['search','금형 조회'],['move','이동 등록'],['hist','이력'],
@@ -715,7 +732,8 @@ const K_MASTER = 'mold_loc_master_v1';
 const K_HIST   = 'mold_loc_history_v1';
 const K_AUDIT  = 'mold_loc_audit_v1';
 const K_CONFIG = 'mold_loc_config_v1';
-const SB_KEYS  = [K_MASTER, K_HIST, K_AUDIT, K_CONFIG];
+const K_PINS   = 'user_pins';                 // 사내 공용 담당자·PIN 마스터
+const SB_KEYS  = [K_MASTER, K_HIST, K_AUDIT, K_CONFIG, K_PINS];
 
 const HARDCODED_SB_URL = /*__CONN_URL__*/'https://ebthltdmxpzlkfwvdloz.supabase.co';
 const HARDCODED_SB_KEY = /*__CONN_KEY__*/'sb_publishable_ZSgcZapb7cTgFezGmOV_ow_9MT15SnS';
@@ -765,7 +783,8 @@ async function sbDownload(){
 /* 로컬 캐시 → 화면 (오프라인/서버 지연 시에도 즉시 표시) */
 function loadLocal(){
   const g=k=>{ try{ const v=store.get('ml:'+k); return v?JSON.parse(v):null; }catch(e){ return null; } };
-  const m=g(K_MASTER), h=g(K_HIST), a=g(K_AUDIT), c=g(K_CONFIG);
+  const m=g(K_MASTER), h=g(K_HIST), a=g(K_AUDIT), c=g(K_CONFIG), u=g(K_PINS);
+  if(u?.length) S.users=u;
   if(m?.length) S.master=m;
   if(h?.length) S.hist=h;
   if(a) S.audit=a;
@@ -782,6 +801,7 @@ async function fetchAll(){
   if(o[K_MASTER] && !d[K_MASTER]) S.master = o[K_MASTER];
   if(o[K_HIST]   && !d[K_HIST])   S.hist   = o[K_HIST];
   if(o[K_AUDIT]  && !d[K_AUDIT])  S.audit  = o[K_AUDIT];
+  if(Array.isArray(o[K_PINS])) { S.users = o[K_PINS]; store.set('ml:'+K_PINS, JSON.stringify(S.users)); }
   S.emptyMaster = !S.master.length;
   // 미전송분 복구 업로드
   Object.keys(d).forEach(k=>{
@@ -989,6 +1009,11 @@ function fillSelects(){
   $('#hy').innerHTML=`<option value="">연도 전체</option>`+yrs.map(y=>`<option value="${y}">${y}년</option>`).join('');
   $('#mvMold').onchange=showNow; $('#mvLoc').onchange=syncMvRack; showNow(); fillSwap();
 }
+function syncBy(){
+  const a=$('#mvBy'), b=$('#swBy');
+  if(a) a.value=S.me||''; if(b) b.value=S.me||'';
+  const c=$('#auByIn'); if(c && !S.au.by && S.me){ S.au.by=S.me; c.value=S.me; }
+}
 function showNow(){
   const [pn,mn]=($('#mvMold').value||'|').split('|');
   const m=S.master.find(x=>x.pn===pn&&x.mn===mn);
@@ -1063,7 +1088,7 @@ function goTab(k){
 }
 
 async function saveSwap(){
-  const mc=$('#swMc').value, by=$('#swBy').value.trim(), why=$('#swWhy').value, m4=$('#sw4m').checked;
+  const mc=$('#swMc').value, by=S.me||$('#swBy').value.trim(), why=$('#swWhy').value, m4=$('#sw4m').checked;
   if(!by) return toast('담당자를 입력하세요',true);
   const all=$$('#swCur .dismount').map(d=>({
     pn:d.dataset.pn, mn:d.dataset.mn,
@@ -1114,7 +1139,6 @@ async function saveMove(){
   const [pn,mn]=($('#mvMold').value||'|').split('|');
   const loc=$('#mvLoc').value, rack=$('#mvRack').value, by=$('#mvBy').value.trim();
   if(!pn){ return toast('금형을 선택하세요',true); }
-  if(!by){ return toast('담당자를 입력하세요',true); }
   if(!needPin()) return;
   const now=new Date().toISOString();
   const m=S.master.find(x=>x.pn===pn&&x.mn===mn);
@@ -1490,7 +1514,8 @@ function resetLists(){
 
 /* ══ 현황판 실사 (프레스 라인 도보 점검) ══ */
 function startWalk(){
-  S.au={on:true, ym:today().slice(0,7), cd:today(), by:'', cf:'', res:{}};
+  if(!needPin()) return;
+  S.au={on:true, ym:today().slice(0,7), cd:today(), by:S.me||'', cf:'', res:{}};
   // 미해소 불일치는 미리 불일치로 채워둠
   S.master.filter(m=>m.ms && m.loc!==STORE).forEach(m=>{ S.au.res[key(m)]={v:'ng',loc:m.msLoc||'',rack:m.msRack||''}; });
   renderBoard(); window.scrollTo({top:0,behavior:'smooth'});
@@ -1550,8 +1575,9 @@ function markLoc(k,f,v){
 }
 
 async function finishWalk(){
-  const by=(S.au.by||'').trim(), cf=(S.au.cf||'').trim(), cd=S.au.cd||today();
-  if(!by) return toast('점검자를 입력하세요',true);
+  if(!needPin()) return;
+  const by=(S.au.by||S.me||'').trim(), cf=(S.au.cf||'').trim(), cd=S.au.cd||today();
+  if(!by) return toast('점검자를 확인할 수 없습니다',true);
   if(!cf && !confirm('확인자가 비어 있습니다.\n\n확인자 서명이 없으면 심사에서 증빙으로 인정받기 어렵습니다.\n이대로 저장할까요?')) return;
   if(!cd) return toast('점검일자를 입력하세요',true);
   const tg=S.master.filter(m=>m.loc&&m.loc!==STORE);
@@ -1677,7 +1703,7 @@ function mkQr(){
 }
 
 /* ═══ 초기화 ═══ */
-function renderAll(){ renderBoard(); renderSearch(); renderHist(); fillSelects(); }
+function renderAll(){ renderBoard(); renderSearch(); renderHist(); fillSelects(); syncBy(); renderMe(); }
 
 function tick(){
   const n=new Date(), p=x=>String(x).padStart(2,'0');
@@ -1690,11 +1716,14 @@ function tick(){
   try{ const c=store.get('moldloc_cfg'); if(c) S.cfg=JSON.parse(c); }catch(e){}
   const fromQr = applySetupHash();
   $('#cPin').value=S.cfg.pin||'';
-  $('#sql').textContent=SQL; $('#sm').textContent=SEED.m.length; $('#sh').textContent=SEED.h.length;
+  $('#sql').textContent=SQL;
+  setTimeout(()=>{ const e=$('#uCnt'); if(e) e.textContent=`등록 인원 ${S.users.length}명`; },800); $('#sm').textContent=SEED.m.length; $('#sh').textContent=SEED.h.length;
+  try{ S.me = store.get('ml:me')||''; }catch(e){}
   loadLocal();                 // 로컬 캐시 즉시 표시
-  fillLists(); renderAll();
+  fillLists(); renderAll(); renderMe();
   await connect();             // 서버 동기화
-  fillLists(); renderAll(); renderReg(); sbInfo();
+  fillLists(); renderAll(); renderReg(); sbInfo(); renderMe();
+  if(S.me && !S.users.some(u=>u.name===S.me)) { S.me=''; renderMe(); }
   if(fromQr) toast(S.online?'설정이 적용되어 연결되었습니다':'설정을 적용했으나 연결에 실패했습니다', !S.online);
   $('#cfMc').oninput=checkLists;
   $('#regYear').onchange=renderReg;
