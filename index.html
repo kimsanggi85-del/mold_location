@@ -615,6 +615,39 @@ body.capture main{padding:22px}
       </div>
     </div>
     <div class="card" style="margin-top:16px">
+      <h3>고정 장착 (전용 금형) 관리</h3>
+      <p style="font-size:12.5px;color:var(--tx2);line-height:1.65;margin-bottom:12px">
+        설비에 상시 장착되는 전용 금형을 체크하세요. 체크된 금형은 <strong>경과일이 길어도 미갱신 알람이 뜨지 않습니다.</strong>
+        실사 대상에는 그대로 포함됩니다.</p>
+      <div class="tw" style="max-height:340px"><table>
+        <thead><tr><th style="width:56px">고정</th><th style="width:120px">호기</th><th>품번</th><th style="width:112px">최종 갱신</th><th style="width:76px">경과</th></tr></thead>
+        <tbody id="fixBody"></tbody>
+      </table></div>
+      <div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap;align-items:center">
+        <button class="btn pri" onclick="saveFix()">고정 설정 저장</button>
+        <button class="btn" onclick="fixCheckAll(true)">전체 선택</button>
+        <button class="btn" onclick="fixCheckAll(false)">전체 해제</button>
+        <span style="margin-left:auto;font-size:12px;color:var(--tx3)" id="fixCnt"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>점검 일정 · 알람</h3>
+      <div class="row">
+        <div class="fld"><label>월간 설비 실사 기한 (매월 O일)</label>
+          <input type="number" id="pDay" min="1" max="31" value="25"></div>
+        <div class="fld"><label>전수 실사 월 (쉼표 구분)</label>
+          <input type="text" id="pFull" value="6,12" placeholder="6,12"></div>
+      </div>
+      <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+        <button class="btn pri" onclick="savePlan()">일정 저장</button>
+        <button class="btn pri" id="notiBtn" onclick="askNotify()">알림 켜기</button>
+      </div>
+      <p class="hint">기한 7일 전부터 현황판에 알람이 뜨고, 기한이 지나면 경과 일수가 표시됩니다.
+        알림을 켜면 다른 기기에서 위치가 바뀌거나 점검 기한이 도래할 때 <strong>브라우저 알림</strong>이 뜹니다.</p>
+    </div>
+
+    <div class="card" style="margin-top:16px">
       <h3>설비 · 보관장 목록</h3>
       <p style="font-size:12.5px;color:var(--tx2);margin-bottom:12px">한 줄에 하나씩 적습니다. 순서가 현황판 배치 순서가 됩니다.
         호기는 <code>번호 설비명톤수</code> 형식으로 쓰세요 (예: <code>11 심팩200</code>). 저장하면 모든 단말에 반영됩니다.</p>
@@ -726,7 +759,7 @@ function buildTabs(){
     goTab(b.dataset.k);
     if(b.dataset.k==='audit') renderAudit();
     if(b.dataset.k==='reg') renderReg();
-    if(b.dataset.k==='cfg') sbInfo();
+    if(b.dataset.k==='cfg'){ sbInfo(); renderFixList(); }
   });
 }
 
@@ -1075,7 +1108,10 @@ function showMounted(){
   $('#swCur').innerHTML = list.length ? list.map((m,i)=>`
     <div class="dismount keep" data-pn="${esc(m.pn)}" data-mn="${esc(m.mn)}" data-home="${esc(m.rack||'')}">
       <div class="dm"><span class="dp">${esc(m.pn)}</span><span class="dd num">${esc(m.mn||'—')} · ${fmt(m.at)}</span></div>
-      <div class="cur">현재 <strong>${esc(mc)}</strong> 장착 중${m.rack?` · 지정 보관위치 <strong style="color:var(--steel)">${esc(m.rack)}</strong>`:' · 지정 보관위치 없음'}</div>
+      <div class="cur">현재 <strong>${esc(mc)}</strong> 장착 중${m.rack?` · 지정 보관위치 <strong style="color:var(--steel)">${esc(m.rack)}</strong>`:' · 지정 보관위치 없음'}
+        <label style="float:right;cursor:pointer;color:${m.fix?'var(--ok)':'var(--tx3)'}">
+          <input type="checkbox" ${m.fix?'checked':''} onchange="toggleFix('${esc(key(m))}')"
+            style="vertical-align:-2px;accent-color:var(--ok)"> 전용 고정</label></div>
       <div class="dsel">
         <select class="dLoc" onchange="dChg(this)">
           <option value="__keep__" selected>— 유지 (계속 장착) —</option>
@@ -1497,6 +1533,45 @@ async function savePng(which){
 }
 
 
+function renderFixList(){
+  const b=$('#fixBody'); if(!b) return;
+  const rows=S.master.filter(m=>m.loc && m.loc!==STORE)
+    .sort((a,c)=>String(a.loc).localeCompare(String(c.loc)));
+  b.innerHTML = rows.length ? rows.map(m=>{
+    const d=days(m.at);
+    return `<tr data-k="${esc(key(m))}"${m.fix?' style="background:rgba(63,178,107,.06)"':''}>
+      <td style="text-align:center"><input type="checkbox" class="fixChk" ${m.fix?'checked':''}
+        style="width:17px;height:17px;accent-color:var(--ok)" onchange="fixCount()"></td>
+      <td class="num" style="font-weight:600">${esc(m.loc)}</td>
+      <td>${esc(m.pn)}<span style="color:var(--tx3)"> ${esc(m.mn||'')}</span></td>
+      <td class="num" style="color:var(--tx3)">${(m.at||'').slice(0,10)||'—'}</td>
+      <td class="num">${m.fix?'<span class="chip n">고정</span>'
+        :`<span class="chip ${d===null?'b':d>AGE_BAD?'b':d>AGE_WARN?'w':'g'}">${d===null?'없음':d+'일'}</span>`}</td>
+    </tr>`;}).join('')
+    : `<tr><td colspan="5" class="empty">설비에 장착된 금형이 없습니다</td></tr>`;
+  fixCount();
+}
+function fixCount(){
+  const n=$$('#fixBody .fixChk').filter(c=>c.checked).length;
+  const e=$('#fixCnt'); if(e) e.textContent=`고정 ${n}건 / 설비 장착 ${$$('#fixBody .fixChk').length}건`;
+}
+function fixCheckAll(v){ $$('#fixBody .fixChk').forEach(c=>c.checked=v); fixCount(); }
+async function saveFix(){
+  if(!needPin()) return;
+  const rows=$$('#fixBody tr[data-k]');
+  let ch=0;
+  rows.forEach(tr=>{
+    const [pn,mn]=tr.dataset.k.split('|');
+    const m=S.master.find(x=>x.pn===pn&&(x.mn||'')===(mn||''));
+    const v=tr.querySelector('.fixChk').checked;
+    if(m && !!m.fix!==v){ m.fix=v; ch++; }
+  });
+  if(!ch) return toast('변경된 내용이 없습니다');
+  const ok=await saveMaster();
+  toast(ok?`고정 설정 ${ch}건을 저장했습니다`:'저장 실패 — 연결을 확인하세요', !ok);
+  renderAll(); renderFixList();
+}
+
 async function toggleFix(k){
   const [pn,mn]=k.split('|');
   const m=S.master.find(x=>x.pn===pn&&(x.mn||'')===(mn||''));
@@ -1906,7 +1981,7 @@ function tick(){
   loadLocal();                 // 로컬 캐시 즉시 표시
   fillLists(); renderAll(); renderMe();
   await connect();             // 서버 동기화
-  fillLists(); renderAll(); renderReg(); sbInfo(); renderMe();
+  fillLists(); renderAll(); renderReg(); sbInfo(); renderMe(); renderFixList();
   if(S.me && !S.users.some(u=>u.name===S.me)) { S.me=''; renderMe(); }
   if(fromQr) toast(S.online?'설정이 적용되어 연결되었습니다':'설정을 적용했으나 연결에 실패했습니다', !S.online);
   $('#cfMc').oninput=checkLists;
