@@ -681,7 +681,7 @@ body.capture main{padding:22px}
         <button class="btn pri" onclick="savePlan()">일정 저장</button>
         <button class="btn pri" id="notiBtn" onclick="askNotify()">알림 켜기</button>
       </div>
-      <p class="hint">기한 7일 전부터 현황판에 알람이 뜨고, 기한이 지나면 경과 일수가 표시됩니다.
+      <p class="hint">기한 7일 전부터 현황판에 알람이 뜨고, 기한이 지나면 경과 일수가 표시됩니다.<br><strong style="color:var(--amber)">NTFY 알림은 기한 하루 전부터 실사를 마칠 때까지 매일 발송</strong>됩니다. 실사를 완료하면 자동으로 멈춥니다.
         알림을 켜면 다른 기기에서 위치가 바뀌거나 점검 기한이 도래할 때 <strong>브라우저 알림</strong>이 뜹니다.</p>
     </div>
 
@@ -1681,20 +1681,35 @@ function ntIssues(){
 
   if(!eqThis){
     const left=P.day-D;
-    if(left<0) out.push({k:'plan-'+Y+'-'+M, pr:'high', tag:'warning',
-      t:M+'월 금형 위치점검 미실시',
-      m:'기한 '+(-left)+'일 경과 (매월 '+P.day+'일까지)\n대상 : 프레스 '
-        +new Set(onPress.map(m=>m.loc)).size+'호기 '+onPress.length+'건'});
-    else if(left<=3) out.push({k:'due-'+Y+'-'+M, pr:'default', tag:'calendar',
-      t:M+'월 금형 위치점검 D-'+left,
-      m:P.day+'일까지 프레스 라인 대조점검을 실시하세요.\n대상 '+onPress.length+'건'});
+    // 하루 전(D-1)부터 실사를 마칠 때까지 매일 발송한다.
+    // 발송 기록 키에 날짜를 넣어 재알림 주기와 무관하게 매일 한 번씩 나가게 한다.
+    const dk=Y+'-'+String(M).padStart(2,'0')+'-'+String(D).padStart(2,'0');
+    const tgt='대상 : 프레스 '+new Set(onPress.map(m=>m.loc)).size+'호기 '+onPress.length+'건';
+    if(left<0) out.push({k:'plan-'+dk, pr:'high', tag:'rotating_light',
+      t:M+'월 금형 위치점검 미실시 · '+(-left)+'일 경과',
+      m:'기한이 '+(-left)+'일 지났습니다. (매월 '+P.day+'일까지)\n'+tgt
+        +'\n\n실사를 마치면 알림이 자동으로 멈춥니다.'});
+    else if(left===0) out.push({k:'plan-'+dk, pr:'high', tag:'warning',
+      t:M+'월 금형 위치점검 오늘까지',
+      m:'오늘이 '+M+'월 대조점검 기한입니다.\n'+tgt});
+    else if(left===1) out.push({k:'plan-'+dk, pr:'default', tag:'calendar',
+      t:M+'월 금형 위치점검 D-1',
+      m:'내일('+P.day+'일)까지 프레스 라인 대조점검을 실시하세요.\n'+tgt});
   }
   if(P.full.includes(M)){
     const fullThis=S.audit.some(a=>a.scope!=='설비' && AY(a)===Y && AM(a)===M);
     const eom=new Date(now.getFullYear(),M,0).getDate();
-    if(!fullThis && eom-D<=7) out.push({k:'full-'+Y+'-'+M, pr:'default', tag:'clipboard',
-      t:M+'월 전수 점검 D-'+Math.max(eom-D,0),
-      m:'보관장 포함 '+S.master.length+'건 대조점검 대상 월입니다.'});
+    const dk2=Y+'-'+String(M).padStart(2,'0')+'-'+String(D).padStart(2,'0');
+    const leftF=eom-D;
+    if(!fullThis && leftF<=1)
+      out.push({k:'full-'+dk2, pr:'high', tag:'rotating_light',
+        t:M+'월 전수 점검 '+(leftF<=0?'오늘까지':'D-1'),
+        m:'보관장 포함 '+S.master.length+'건 대조점검을 마쳐야 합니다.'
+          +'\n\n실사를 마치면 알림이 자동으로 멈춥니다.'});
+    else if(!fullThis && leftF<=7)
+      out.push({k:'full-'+Y+'-'+M, pr:'default', tag:'clipboard',
+        t:M+'월 전수 점검 D-'+leftF,
+        m:'보관장 포함 '+S.master.length+'건 대조점검 대상 월입니다.'});
   }
   if(miss.length) out.push({k:'ms-'+miss.length, pr:'high', tag:'rotating_light',
     t:'위치 불일치 '+miss.length+'건 미조치',
@@ -1707,11 +1722,19 @@ function ntIssues(){
 }
 
 async function ntSend(topic, title, msg, pr, tag){
-  const res = await fetch('https://ntfy.sh/'+encodeURIComponent(topic), {
-    method:'POST', body: msg,
-    headers:{ 'Title': encodeURIComponent(title), 'Priority': pr||'default', 'Tags': tag||'bell' }
+  // 헤더에는 한글을 담을 수 없어 JSON 본문으로 발송한다 (UTF-8 그대로 전달)
+  const res = await fetch('https://ntfy.sh/', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      topic: String(topic).trim(),
+      title: String(title),
+      message: String(msg),
+      priority: ({min:1,low:2,default:3,high:4,urgent:5})[pr||'default'] || 3,
+      tags: [tag || 'bell']
+    })
   });
-  if(!res.ok) throw new Error('HTTP '+res.status);
+  if(!res.ok) throw new Error('HTTP '+res.status+' '+(await res.text()).slice(0,120));
 }
 
 async function checkNtfy(manual){
