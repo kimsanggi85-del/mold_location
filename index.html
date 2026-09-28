@@ -875,6 +875,35 @@ function sigTxt(nm, proxy){
   return esc(nm) + (proxy?' <span class="chip w" style="font-size:10px">대행</span>':'');
 }
 
+/* 확인자 칸 : 승인 완료 = 이름 / 미승인 = [승인] 버튼 */
+function cfCell(a, gi){
+  if(a.cf) return esc(a.cf)
+    + (a.cfProxy?' <span class="chip w" style="font-size:10px">대행</span>':'')
+    + (a.cfLate ?' <span class="chip n" style="font-size:10px" title="점검 후 별도로 승인된 건">사후</span>':'');
+  return `<button class="btn sm pri" style="padding:3px 10px;font-size:11.5px"
+    onclick="event.stopPropagation();approveAudit(${gi})"
+    title="확인자 본인 PIN으로 승인합니다">승인</button>`;
+}
+
+/* 승인 대기 건수 */
+function pendCount(){ return S.audit.filter(a=>!a.cf).length; }
+
+/* ── 확인자 사후 승인 ── */
+async function approveAudit(i){
+  const a=S.audit[i]; if(!a) return;
+  if(a.cf) return toast('이미 확인 완료된 기록입니다');
+  if(!confirm(`${a.cd||a.ym} · ${a.scope||'전수'} 실사 결과를 승인합니다.\n\n`
+    +`점검자 : ${a.by||'—'}\n대상 ${a.total}건 · 일치 ${a.match} · 불일치 ${a.miss}\n\n`
+    +`내역을 확인하셨습니까?  ([상세] 버튼으로 먼저 확인할 수 있습니다)`)) return;
+  const s=signConfirm(a.by);
+  if(!s) return;
+  a.cf=s.name; a.cfProxy=s.proxy; a.cfAt=s.at; a.cfLate=true;
+  const ok=await saveAuditLog();
+  toast(ok ? `승인 완료 — 확인자 ${s.name}${s.proxy?' (대행)':''}`
+           : '승인은 화면에 반영됐지만 서버 저장에 실패했습니다 — 연결을 확인하세요', !ok);
+  renderAll(); renderAudit(); renderReg();
+}
+
 function renderMe(){
   const e=$('#meBox'); if(!e) return;
   e.innerHTML = S.me
@@ -1094,15 +1123,26 @@ function renderBoard(){
     <div class="kpi ${miss.length?'b':'g'}"><div class="k">위치 불일치</div><div class="v num">${miss.length}</div><div class="s">${miss.length?'보정 필요':'실사 일치'}</div></div>
     <div class="kpi ${dups.length?'b':'g'}"><div class="k">중복 장착</div><div class="v num">${dups.length}</div><div class="s">1호기 1금형 위반</div></div>
     <div class="kpi"><div class="k">보관장</div><div class="v num">${inStore.length}</div><div class="s">지정위치 미지정 ${noRack.length}건</div></div>
-    <div class="kpi ${staleP.length?'b':'g'}"><div class="k">장착 ${AGE_BAD}일 초과</div><div class="v num">${staleP.length}</div><div class="s">${staleP.length?'반납 기록 누락 의심':`정상 · 고정 ${fixed.length}건 제외`}</div></div>`;
+    <div class="kpi ${staleP.length?'b':'g'}"><div class="k">장착 ${AGE_BAD}일 초과</div><div class="v num">${staleP.length}</div><div class="s">${staleP.length?'반납 기록 누락 의심':`정상 · 고정 ${fixed.length}건 제외`}</div></div>
+    <div class="kpi ${pendCount()?'w':'g'}"><div class="k">승인 대기</div><div class="v num">${pendCount()}</div><div class="s">${pendCount()?'확인자 서명 필요':'전 건 승인 완료'}</div></div>`;
 
-  $('#warnBox').innerHTML = dups.length ? `<div class="warnpanel">
+  const pend = S.audit.map((a,i)=>({a,i})).filter(x=>!x.a.cf);
+  const pendPanel = pend.length ? `<div class="warnpanel">
+    <h4>확인자 승인 대기 ${pend.length}건</h4>
+    <p>점검은 끝났지만 <strong>확인자 서명이 없는 실사 기록</strong>입니다.
+       확인자가 내용을 검토하고 승인해야 심사 증빙으로 인정됩니다.
+       아래를 누르면 승인 창이 열립니다 — <strong>확인자 본인 PIN</strong>이 필요합니다.</p>
+    <div class="wlist">${pend.map(x=>
+      `<button onclick="approveAudit(${x.i})">${esc(x.a.cd||x.a.ym)} ${esc(x.a.scope||'전수')}<b>${esc(x.a.by||'—')}</b></button>`).join('')}</div>
+  </div>` : '';
+
+  $('#warnBox').innerHTML = pendPanel + (dups.length ? `<div class="warnpanel">
     <h4>중복 장착 ${dups.length}개 호기</h4>
     <p>한 호기에 두 건 이상의 금형이 장착 상태로 남아 있습니다. 금형을 교체할 때 탈착 금형을 반납 처리하지 않아 누적된 것입니다.
        호기를 눌러 교체 화면에서 정리하면, 탈착 금형이 보관장으로 반납 기록되면서 해소됩니다.</p>
     <div class="wlist">${dups.map(mc=>
       `<button onclick="openSwap('${esc(mc)}')">${esc(mc)}<b>${byLoc[mc].length}건</b></button>`).join('')}</div>
-  </div>` : '';
+  </div>` : '');
 
   if(S.au.on){ renderWalkTiles(); }
   else $('#bays').innerHTML = MACHINES.map(mc=>{
@@ -1383,7 +1423,7 @@ function renderAudit(){
      <td class="num">${a.match}</td><td class="num">${a.miss}</td>
      <td><span class="chip ${a.miss===0?'g':a.miss<=2?'w':'b'}">${a.total?(a.match/a.total*100).toFixed(1):'0.0'}%</span></td>
      <td>${a.by?sigTxt(a.by,a.byProxy):'—'}</td>
-     <td>${sigTxt(a.cf,a.cfProxy)}</td>
+     <td>${cfCell(a,i)}</td>
      <td><button class="btn sm" onclick="showAudit(${i})">상세</button></td></tr>`).join('')
     : `<tr><td colspan="10" class="empty">저장된 실사 기록이 없습니다</td></tr>`;
 }
@@ -1422,9 +1462,13 @@ async function saveAudit(){
   if(!by) return toast('점검자를 입력하세요',true);
   if(checkAuditor(by)===false) return;
   const byProxy = audNames().length ? !audNames().includes(by) : false;
-  if(!cf){ toast('확인자 서명이 필요합니다 — [확인자 서명] 버튼을 눌러 주세요',true);
-    return faSignConfirm(); }
-  if(cf===by){ S.fa={cf:'',cfProxy:false,cfAt:''}; renderFaSign();
+  if(!cf){
+    if(!confirm('확인자 서명이 없습니다.\n\n'
+      +'[확인] 누르면 → 승인 대기 상태로 저장합니다.\n'
+      +'   확인자가 나중에 실사 기록에서 [승인] 버튼을 누르면 완료됩니다.\n\n'
+      +'[취소] 누르면 → 지금 확인자 서명을 받습니다.')) return faSignConfirm();
+  }
+  if(cf && cf===by){ S.fa={cf:'',cfProxy:false,cfAt:''}; renderFaSign();
     return toast('점검자와 확인자는 같을 수 없습니다',true); }
   const trs=$$('#auBody tr');
   const ok=trs.filter(t=>t.querySelector('input[value=ok]')?.checked).length;
@@ -1596,7 +1640,7 @@ function renderReg(){
       <td class="num">${a.total}</td><td class="num">${a.match}</td><td class="num">${a.miss}</td>
       <td><span class="chip ${r>=98?'g':r>=90?'w':'b'}">${r.toFixed(1)}%</span></td>
       <td>${st}</td><td>${a.by?sigTxt(a.by,a.byProxy):'—'}</td>
-      <td>${sigTxt(a.cf,a.cfProxy)}</td>
+      <td>${cfCell(a,gi)}</td>
       <td class="noprint"><button class="btn sm" onclick="showAudit(${gi})">상세</button></td></tr>`;
   }).join('') : `<tr><td colspan="12" class="empty">${Y}년 실사 기록이 없습니다</td></tr>`;
 }
@@ -1615,7 +1659,7 @@ function regCsv(){
          (a.total?(a.match/a.total*100).toFixed(1):'0.0')+'%',
          f.n?`${f.done}/${f.n} 조치`:'해당 없음',
          (a.by||'')+(a.byProxy?' (대행)':''),
-         (a.cf||'')+(a.cf&&a.cfProxy?' (대행)':'')]; })]);
+         a.cf ? (a.cf+(a.cfProxy?' (대행)':'')+(a.cfLate?' (사후승인)':'')) : '승인 대기']; })]);
 }
 
 /* ══ 실사 결과 상세 ══ */
@@ -1626,6 +1670,14 @@ function showAudit(i){
   const ng=d.filter(x=>x.v==='ng'), ok=d.filter(x=>x.v==='ok');
   $('#mTitle').textContent = `${a.cd||a.ym} 실사 결과 (${a.scope||'전수'})`;
   $('#mBody').innerHTML = `
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;
+         padding:10px 12px;border-radius:9px;background:var(--bg2);border:1px solid var(--bd)">
+      <span style="font-size:12.5px;color:var(--tx2)">점검자 <strong style="color:var(--tx)">${esc(a.by||'—')}</strong>${a.byProxy?' <span class="chip w" style="font-size:10px">대행</span>':''}</span>
+      <span style="font-size:12.5px;color:var(--tx2)">확인자 ${a.cf
+        ? `<strong style="color:var(--ok)">${esc(a.cf)}</strong>${a.cfProxy?' <span class="chip w" style="font-size:10px">대행</span>':''}${a.cfAt?` <span style="color:var(--tx3)">· ${fmt(a.cfAt)}</span>`:''}`
+        : '<span class="chip w">승인 대기</span>'}</span>
+      ${a.cf?'':`<button class="btn pri sm" style="margin-left:auto" onclick="approveAudit(${i})">확인자 승인</button>`}
+    </div>`+`
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
       ${[['대상',a.total,''],['일치',a.match,'g'],['불일치',a.miss,a.miss?'b':'g'],
          ['일치율',(a.total?(a.match/a.total*100).toFixed(1):'0.0')+'%',a.miss?'w':'g']]
@@ -1662,7 +1714,7 @@ function auditCsv(i){
     [['점검일자','범위','입력일시','점검자','확인자'],
      [a.cd||a.ym,a.scope||'전수',fmt(a.at),
       (a.by||'')+(a.byProxy?' (대행)':''),
-      (a.cf||'')+(a.cf&&a.cfProxy?' (대행)':'')],[],
+      a.cf ? (a.cf+(a.cfProxy?' (대행)':'')+(a.cfLate?' (사후승인)':'')) : '승인 대기'],[],
      ['품번','금형번호','점검표 위치','판정','실제 위치','지정 보관위치'],
      ...d.map(x=>[x.pn,x.mn||'',x.loc||'',x.v==='ok'?'일치':'불일치',x.real||'',x.rack||''])]);
 }
@@ -2316,9 +2368,13 @@ async function finishWalk(){
   if(!needPin()) return;
   const by=(S.au.by||S.me||'').trim(), cf=(S.au.cf||'').trim(), cd=S.au.cd||today();
   if(!by) return toast('점검자를 확인할 수 없습니다',true);
-  if(!cf){ toast('확인자 서명이 필요합니다 — 상단 [확인자 서명] 버튼을 눌러 주세요',true);
-    return walkSign(); }
-  if(cf===by) return toast('점검자와 확인자는 같을 수 없습니다',true);
+  if(!cf){
+    if(!confirm('확인자 서명이 없습니다.\n\n'
+      +'[확인] 누르면 → 승인 대기 상태로 저장합니다.\n'
+      +'   확인자가 나중에 실사 기록에서 [승인] 버튼을 누르면 완료됩니다.\n\n'
+      +'[취소] 누르면 → 지금 확인자 서명을 받습니다.')) return walkSign();
+  }
+  if(cf && cf===by) return toast('점검자와 확인자는 같을 수 없습니다',true);
   if(!cd) return toast('점검일자를 입력하세요',true);
   const tg=S.master.filter(m=>m.loc&&m.loc!==STORE);
   const res=tg.map(m=>({m,r:S.au.res[key(m)]})).filter(x=>x.r);
