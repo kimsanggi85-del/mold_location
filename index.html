@@ -789,7 +789,7 @@ const store = {
 
 /* ═══ 상태 ═══ */
 let S = { master:[], hist:[], audit:[], users:[], me:'', plan:{day:25,full:[6,12]}, cfg:{pin:''}, online:false, emptyMaster:false, stamp:'',
-  auditors:{main:'',sub:'',conf:''},
+  auditors:{main:'',sub:'',conf:''}, connErr:'', connAt:'', reconn:false,
   fa:{cf:'',cfProxy:false,cfAt:''},
   au:{on:false, ym:'', cd:'', by:'', cf:'', cfAt:'', byProxy:false, cfProxy:false, res:{}} };
 const today=()=>new Date().toISOString().slice(0,10);
@@ -989,10 +989,26 @@ async function sbDownload(){
       {headers:{'apikey':getSbKey(),'Authorization':`Bearer ${getSbKey()}`}});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const rows = await res.json();
-    S.online = true;
+    S.online = true; S.connErr=''; S.connAt=new Date().toISOString();
     const o = {}; rows.forEach(r=>{ o[r.key]=r.value; });
     return o;
-  }catch(e){ console.warn('[다운로드 실패]', e); S.online=false; return null; }
+  }catch(e){ console.warn('[다운로드 실패]', e); S.online=false;
+    S.connErr = (e && e.message) ? String(e.message) : '네트워크 연결 실패';
+    S.connAt  = new Date().toISOString();
+    return null; }
+}
+
+/* 수동 재연결 — 오프라인일 때 사용자가 직접 재시도 */
+async function reconnect(){
+  if(S.reconn) return;
+  S.reconn=true; toast('서버에 다시 연결하는 중…');
+  renderAll(); if(typeof sbInfo==='function') sbInfo();
+  await fetchAll();
+  S.reconn=false;
+  if(S.online){ startPoll(); toast(`연결되었습니다 — 금형 ${S.master.length}건 · 실사 ${S.audit.length}건`); }
+  else toast('연결 실패 — '+(S.connErr||'네트워크를 확인하세요'), true);
+  fillLists(); renderAll(); renderReg(); renderAudit();
+  if(typeof sbInfo==='function') sbInfo();
 }
 
 /* 로컬 캐시 → 화면 (오프라인/서버 지연 시에도 즉시 표시) */
@@ -1068,6 +1084,9 @@ function renderBoard(){
   $('#lastUpd').textContent = lu ? ago(lu) : '기록 없음';
   $('#dot').className = 'dot'+(S.online?'':' off');
   $('#connLbl').textContent = S.online?'서버 동기화 · 최종 갱신':'오프라인 · 최종 갱신';
+  const _cd=$('#connLbl').closest('.meta,.chipbox,div');
+  if(_cd && !S.online){ _cd.style.cursor='pointer'; _cd.title='눌러서 다시 연결'; _cd.onclick=reconnect; }
+  else if(_cd){ _cd.style.cursor=''; _cd.title=''; _cd.onclick=null; }
   const sl=$('#srcLbl');
   if(sl){ sl.textContent = S.online?(S.emptyMaster?'서버 (금형 미업로드)':'Supabase 서버'):'파일 내장 데이터';
     sl.style.color = S.online?(S.emptyMaster?'var(--warn)':'var(--ok)'):'var(--amber)'; }
@@ -1515,7 +1534,12 @@ function sbInfo(){
     ? `<div style="color:${S.online?'var(--ok)':'var(--bad)'};font-weight:700;margin-bottom:5px">
          ${S.online?'● 연결됨':'● 연결 안 됨'}</div>
        <div style="font-size:11.5px;color:var(--tx3);word-break:break-all">${esc(u)}</div>
-       <div style="font-size:11.5px;color:var(--tx3);margin-top:4px">테이블 <code>kv_store</code> · 사내 공용</div>`
+       <div style="font-size:11.5px;color:var(--tx3);margin-top:4px">테이블 <code>kv_store</code> · 사내 공용</div>
+       ${S.online
+         ? `<div style="font-size:11.5px;color:var(--tx3);margin-top:4px">금형 ${S.master.length}건 · 이력 ${S.hist.length}건 · 실사 ${S.audit.length}건</div>`
+         : `<div style="font-size:11.5px;color:#ff9b98;margin-top:6px">사유 : ${esc(S.connErr||'네트워크 연결 실패')}</div>`}
+       ${S.connAt?`<div style="font-size:11px;color:var(--tx3);margin-top:3px">마지막 시도 ${fmt(S.connAt)}</div>`:''}
+       <button class="btn sm ${S.online?'':'pri'}" style="margin-top:9px" onclick="reconnect()">${S.reconn?'연결 중…':'다시 연결'}</button>`
     : `<span style="color:var(--bad)">연결 정보가 없습니다</span>`;
 }
 
@@ -2078,6 +2102,22 @@ const PLAN = () => ({ day: (S.plan?.day ?? 25), full: (S.plan?.full ?? [6,12]) }
 
 function alarms(){
   const A=[], now=new Date(), Y=String(now.getFullYear()), M=now.getMonth()+1, D=now.getDate();
+
+  /* ── 서버 미연결 : 데이터를 못 읽은 상태이므로 점검 판정을 하지 않는다 ──
+     (연결이 안 된 것을 '실사 미실시'로 잘못 알리는 것을 막는다) */
+  if(!S.online && !S.master.length){
+    return [{lv:'hi', ic:'!', t1:'서버에 연결되지 않았습니다',
+      t2:`금형·실사 기록을 불러오지 못해 화면이 비어 있습니다. 실사를 안 한 것이 아니라 데이터를 못 읽은 것입니다.`
+        +(S.connErr?` (사유 : ${esc(S.connErr)})`:'')
+        +` 아래 [다시 연결]을 누르거나, 안 되면 사내망·인터넷 상태를 확인하세요.`,
+      btn:[S.reconn?'연결 중…':'다시 연결', 'reconnect()']}];
+  }
+  if(!S.online){
+    A.push({lv:'mid', ic:'!', t1:'서버 미연결 · 이 기기에 저장된 내용만 보고 있습니다',
+      t2:`다른 사람이 등록한 변경은 반영되지 않았고, 여기서 등록한 내용도 아직 전송되지 않았습니다.`
+        +(S.connErr?` (사유 : ${esc(S.connErr)})`:''),
+      btn:[S.reconn?'연결 중…':'다시 연결', 'reconnect()']});
+  }
   const P=PLAN();
   const miss = S.master.filter(m=>m.ms);
   const dups = MACHINES.filter(mc=>S.master.filter(m=>m.loc===mc).length>1);
