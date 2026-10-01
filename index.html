@@ -224,6 +224,14 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
 /* ── 현황판 실사 모드 ── */
 .aubar{background:linear-gradient(90deg,rgba(255,176,32,.14),rgba(255,176,32,.05));border:1px solid rgba(255,176,32,.4);border-left:4px solid var(--amber);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .aubar h3{font-size:14px;font-weight:700;color:var(--amber)}
+.aubar.st-done{background:linear-gradient(90deg,rgba(46,204,113,.13),rgba(46,204,113,.04));border-color:rgba(46,204,113,.38);border-left-color:var(--ok)}
+.aubar.st-done h3{color:var(--ok)}
+.aubar.st-wait{background:var(--bg2,#1a1e24);border-color:var(--line);border-left-color:#5b6675}
+.aubar.st-wait h3{color:var(--tx)}
+.aubar.st-late{background:linear-gradient(90deg,rgba(255,92,87,.15),rgba(255,92,87,.05));border-color:rgba(255,92,87,.45);border-left-color:var(--bad)}
+.aubar.st-late h3{color:#ff9b98}
+.aubar .stx{font-size:12px;color:var(--tx2)}
+.aubar .stx b{color:var(--tx);font-weight:600}
 .aubar .prog{font-size:12px;color:var(--tx2)}
 .aubar .pbar{flex:1;min-width:140px;height:5px;background:rgba(0,0,0,.35);border-radius:3px;overflow:hidden}
 .aubar .pbar i{display:block;height:100%;background:var(--amber);transition:width .25s}
@@ -1120,14 +1128,15 @@ function renderBoard(){
         <button class="btn sm" onclick="cancelWalk()">취소</button>
         <button class="btn pri sm" onclick="finishWalk()">실사 완료</button>
       </div></div>`
-    : `<div class="aubar">
-      <h3>현황판 실사</h3>
-      <span class="prog">프레스 라인 ${new Set(tg.map(m=>m.loc)).size}호기 · 금형 ${tg.length}건을 현물과 대조합니다</span>
+    : (()=>{ const st=walkStatus();
+      return `<div class="aubar st-${st.cls}">
+      <h3>${st.title}</h3>
+      <span class="stx">${st.sub}</span>
       <div class="sp">
         <button class="btn sm" onclick="savePng()">화면 저장</button>
         <button class="btn sm" onclick="printBoard()">인쇄</button>
-        <button class="btn pri sm" onclick="startWalk()">실사 시작</button>
-      </div></div>`;
+        <button class="btn ${st.cls==='done'||st.cls==='wait'?'':'pri'} sm" onclick="startWalk()">${st.cls==='done'?'재실사':'실사 시작'}</button>
+      </div></div>`; })();
   if(S.au.on){ $('#auByIn').oninput=e=>{ S.au.by=e.target.value;
       if(S.au.cf && S.au.cf===e.target.value.trim()){ S.au.cf=''; S.au.cfProxy=false; S.au.cfAt='';
         toast('점검자와 확인자가 같아 서명이 해제되었습니다',true); renderBoard(); } };
@@ -2099,6 +2108,29 @@ function rackCsv(){
 
 /* ══ 알람 : 갱신 · 점검 기한 · 미조치 ══ */
 const PLAN = () => ({ day: (S.plan?.day ?? 25), full: (S.plan?.full ?? [6,12]) });
+
+/* 현황판 실사 바 상태 : done(이번 달 완료) / wait(기한 여유) / soon(7일 이내) / late(기한 경과) */
+function walkStatus(){
+  const now=new Date(), Y=now.getFullYear(), M=now.getMonth()+1, D=now.getDate();
+  const P=PLAN();
+  const tg=S.master.filter(m=>m.loc&&m.loc!==STORE);
+  const scope=`프레스 ${new Set(tg.map(m=>m.loc)).size}호기 · 금형 ${tg.length}건`;
+  const key=a=>(a.cd||a.ym||'').slice(0,7);
+  const ym=`${Y}-${String(M).padStart(2,'0')}`;
+  const eq=S.audit.filter(a=>a.scope==='설비').sort((x,y)=>(y.cd||y.at||'').localeCompare(x.cd||x.at||''));
+  const cur=eq.find(a=>key(a)===ym);
+  const last=eq[0];
+  const who=a=>`점검 ${esc(a.by||'—')} · 확인 ${a.cf?esc(a.cf):'<span style="color:var(--amber)">승인 대기</span>'}`;
+  const md=s=>{ const p=String(s||'').slice(5,10).split('-'); return p.length===2?`${+p[0]}/${+p[1]}`:'—'; };
+  if(cur) return {cls:'done', title:`${M}월 실사 완료 ✓`,
+    sub:`<b>${md(cur.cd)}</b> · ${who(cur)} · 일치 ${cur.match}/${cur.total}　|　다음 기한 <b>${M===12?1:M+1}/${P.day}</b>`};
+  const left=P.day-D;
+  const lastTxt = last ? `　|　지난 실사 <b>${md(last.cd)}</b> 완료` : '';
+  if(!S.online && !S.master.length) return {cls:'wait', title:'현황판 실사', sub:'서버 연결 후 상태가 표시됩니다'};
+  if(left<0) return {cls:'late', title:`${M}월 실사 미실시 · ${-left}일 경과`, sub:`기한 ${M}/${P.day} · 대상 ${scope}${lastTxt}`};
+  if(left<=7) return {cls:'soon', title:`${M}월 실사 D-${left}`, sub:`기한 <b>${M}/${P.day}</b> · 대상 ${scope}${lastTxt}`};
+  return {cls:'wait', title:`${M}월 실사 예정`, sub:`기한 <b>${M}/${P.day}</b> (D-${left}) · 대상 ${scope}${lastTxt}`};
+}
 
 function alarms(){
   const A=[], now=new Date(), Y=String(now.getFullYear()), M=now.getMonth()+1, D=now.getDate();
