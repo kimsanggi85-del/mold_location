@@ -441,11 +441,12 @@ body.capture main{padding:22px}
       <input type="text" id="q" placeholder="품번 또는 금형번호 검색">
       <select id="fLoc"><option value="">위치 전체</option></select>
       <select id="fAge"><option value="">경과일 전체</option><option value="0">30일 이내</option><option value="1">31~60일</option><option value="2">60일 초과</option><option value="F">고정 장착만</option></select>
+      <button class="btn pri" onclick="openMoldForm()">＋ 금형 추가</button>
       <button class="btn" onclick="exportCsv()">CSV 내려받기</button>
       <span style="margin-left:auto;color:var(--tx3);font-size:12px" id="qCnt"></span>
     </div>
     <div class="tw"><table>
-      <thead><tr><th>품번</th><th>금형번호</th><th>현재 위치</th><th>지정 보관위치</th><th>최종 갱신</th><th>경과</th><th style="width:64px">고정</th><th></th></tr></thead>
+      <thead><tr><th>품번</th><th>금형번호</th><th>현재 위치</th><th>지정 보관위치</th><th>최종 갱신</th><th>경과</th><th style="width:64px">고정</th><th style="width:116px"></th></tr></thead>
       <tbody id="qBody"></tbody>
     </table></div>
   </section>
@@ -502,7 +503,7 @@ body.capture main{padding:22px}
     <div class="bar">
       <input type="text" id="hq" placeholder="품번 · 금형번호 · 위치 검색">
       <select id="hy"><option value="">연도 전체</option></select>
-      <select id="hk"><option value="">구분 전체</option><option value="장착">장착</option><option value="반납">반납</option><option value="이동">이동</option><option value="실사보정">실사보정</option></select>
+      <select id="hk"><option value="">구분 전체</option><option value="장착">장착</option><option value="반납">반납</option><option value="이동">이동</option><option value="실사보정">실사보정</option><option value="신규등록">신규등록</option><option value="정보수정">정보수정</option><option value="삭제">삭제</option></select>
       <select id="h4"><option value="">4M 전체</option><option value="1">4M 변경 건만</option></select>
       <button class="btn" onclick="exportHist()">CSV 내려받기</button>
       <span style="margin-left:auto;color:var(--tx3);font-size:12px" id="hCnt"></span>
@@ -1239,7 +1240,8 @@ function renderSearch(){
       <td>${m.fix?'<span class="chip n">고정</span>':`<span class="chip ${['g','w','b','b'][g]}">${d===null?'없음':d+'일'}</span>`}</td>
       <td><button class="btn sm ${m.fix?'':''}" onclick="toggleFix('${esc(m.pn)}|${esc(m.mn)}')"
             title="설비 전용 고정 장착 여부">${m.fix?'해제':'지정'}</button></td>
-      <td><button class="btn sm" onclick="openMove('${esc(m.pn)}|${esc(m.mn)}')">이동</button></td></tr>`;
+      <td style="white-space:nowrap"><button class="btn sm" onclick="openMove('${esc(m.pn)}|${esc(m.mn)}')">이동</button>
+          <button class="btn sm" onclick="openMoldForm('${esc(m.pn)}|${esc(m.mn)}')">수정</button></td></tr>`;
   }).join('') : `<tr><td colspan="8" class="empty">조건에 맞는 금형이 없습니다</td></tr>`;
 }
 
@@ -1254,7 +1256,7 @@ function renderHist(){
     return true;
   }).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
   $('#hCnt').textContent=`${rows.length}건`;
-  const kc={'장착':'g','반납':'n','이동':'w','실사보정':'b'};
+  const kc={'장착':'g','반납':'n','이동':'w','실사보정':'b','신규등록':'g','정보수정':'n','삭제':'b'};
   $('#hBody').innerHTML = rows.length ? rows.slice(0,600).map((h,i)=>
     `<tr><td class="num" style="color:var(--tx3)">${rows.length-i}</td><td class="num">${fmt(h.at)}</td>
      <td><span class="chip ${kc[h.kind]||'n'}">${esc(h.kind||'이동')}</span></td>
@@ -1422,6 +1424,127 @@ async function saveMove(){
   await Promise.all([saveMaster(), saveHist()]);
   toast(`${pn} → ${loc}${rack?' '+rack:''} 등록`);
   renderAll();
+}
+
+/* ═══ 금형 추가 · 수정 · 삭제 ═══════════════════════════════
+   · 신규등록 : 품번·금형번호·현재 위치를 마스터에 넣고 이력에 '신규등록'으로 남김
+   · 정보수정 : 품번·금형번호·전용고정만 수정 (위치는 이동 등록으로만 변경 → 이력 일관성)
+   · 삭제     : 마스터에서 제거, 이력에 '삭제' 기록 (과거 이력은 보존)
+   ══════════════════════════════════════════════════════════ */
+const normK = s => String(s??'').trim().toUpperCase().replace(/\s+/g,'');
+function findDup(pn,mn,except){
+  return S.master.find(x=>x!==except && normK(x.pn)===normK(pn) && normK(x.mn)===normK(mn));
+}
+function openMoldForm(k){
+  const m = k ? S.master.find(x=>key(x)===k) : null;
+  if(k && !m) return toast('금형을 찾을 수 없습니다',true);
+  S.mfEdit = m || null;
+  const locOpts = `<option value="${STORE}">${STORE}</option>` +
+    MACHINES.map(x=>`<option value="${esc(x)}">${esc(x)}${mountedOn(x).length?' (장착 중)':''}</option>`).join('');
+  const rackOpts = `<option value="">— 선택 —</option><option value="__unknown__">미확인</option>` +
+    RACKS.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('');
+  $('#mTitle').textContent = m ? '금형 정보 수정' : '금형 추가';
+  $('#mBody').innerHTML = `
+    <div class="fld"><label>품번 *</label>
+      <input type="text" id="mfPn" value="${esc(m?.pn||'')}" placeholder="예: 1960-0031-01" spellcheck="false" autocomplete="off"></div>
+    <div class="fld"><label>금형번호 (재번)</label>
+      <input type="text" id="mfMn" value="${esc(m?.mn||'')}" placeholder="예: 0DHA038" spellcheck="false" autocomplete="off"></div>
+    ${m ? `
+    <div class="fld"><label>현재 위치</label>
+      <div style="background:#15181d;border:1px solid var(--line);border-radius:7px;padding:11px;font-size:12.5px;color:var(--tx2)">
+        <strong style="color:var(--tx)">${esc(m.loc||'—')}</strong>${m.rack?` · ${esc(m.rack)}`:''}
+        <span style="color:var(--tx3)"> · ${fmt(m.at)}</span>
+        <div style="color:var(--tx3);margin-top:4px">위치 변경은 [이동 등록]에서 해 주세요.</div></div></div>`
+    : `
+    <div class="row">
+      <div class="fld"><label>현재 위치 *</label>
+        <select id="mfLoc" onchange="mfLocChg()">${locOpts}</select></div>
+      <div class="fld"><label>보관위치</label>
+        <select id="mfRack">${rackOpts}</select></div>
+    </div>`}
+    <label class="chk"><input type="checkbox" id="mfFix" ${m?.fix?'checked':''}><span>설비 전용 고정 금형</span></label>
+    <div class="fld"><label>${m?'수정':'등록'} 사유</label>
+      <input type="text" id="mfNote" placeholder="${m?'예: 금형번호 오기 정정':'예: 신규 금형 입고 / 이관'}"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn pri" onclick="saveMoldForm()">${m?'수정 저장':'추가'}</button>
+      ${m?`<button class="btn" style="margin-left:auto;color:#ff9b98;border-color:#6b2f2f" onclick="delMold()">삭제</button>`:''}
+    </div>
+    <p class="hint">${m
+      ? '품번·금형번호를 바꾸면 이 금형의 기존 이동 이력도 새 번호로 함께 바뀝니다.'
+      : '같은 품번·금형번호가 이미 있으면 추가되지 않습니다. 보관함이면 보관위치를 고르세요(모르면 미확인).'}</p>`;
+  if(!m) mfLocChg();
+  $('#mask').classList.add('on');
+  setTimeout(()=>$('#mfPn')?.focus(),50);
+}
+function mfLocChg(){
+  const s=$('#mfLoc'), r=$('#mfRack'); if(!s||!r) return;
+  const st = s.value===STORE;
+  r.disabled = !st; if(!st) r.value='';
+}
+async function saveMoldForm(){
+  const m=S.mfEdit;
+  const pn=$('#mfPn').value.trim(), mn=$('#mfMn').value.trim();
+  const fix=$('#mfFix').checked, note=$('#mfNote').value.trim();
+  if(!pn) return toast('품번을 입력하세요',true);
+  if(findDup(pn,mn,m)) return toast(`${pn}${mn?' · '+mn:''} 은(는) 이미 등록된 금형입니다`,true);
+  const now=new Date().toISOString();
+
+  if(!m){
+    const loc=$('#mfLoc').value; let rack=$('#mfRack').value;
+    if(loc===STORE && !rack) return toast('보관위치를 선택하세요 (모르면 미확인)',true);
+    if(rack==='__unknown__') rack='';
+    if(fix && loc===STORE) return toast('전용 고정은 설비에 장착된 금형만 지정할 수 있습니다',true);
+    if(loc!==STORE && mountedOn(loc).length &&
+       !confirm(`${loc}에 이미 장착된 금형이 있습니다.\n(${mountedOn(loc).map(x=>x.pn).join(', ')})\n\n그래도 이 호기에 추가할까요?`)) return;
+    if(!needPin()) return;
+    S.master.push({pn,mn,loc,rack,at:now,fix,ms:false,msLoc:'',msRack:'',msAt:'',msBy:'',msYm:''});
+    S.hist.push({pn,mn,loc,rack,at:now,by:S.me,kind:'신규등록',note:note||'금형 추가',m4:false});
+    const ok=(await Promise.all([saveMaster(), saveHist()])).every(Boolean);
+    toast(ok?`${pn} 추가 완료 — ${loc}${rack?' '+rack:''}`:'추가는 화면에 반영됐지만 서버 저장에 실패했습니다', !ok);
+  }else{
+    const chg=[];
+    if(m.pn!==pn) chg.push(`품번 ${m.pn}→${pn}`);
+    if((m.mn||'')!==mn) chg.push(`금형번호 ${m.mn||'—'}→${mn||'—'}`);
+    if(!!m.fix!==fix){
+      if(fix && (!m.loc||m.loc===STORE)) return toast('전용 고정은 설비에 장착된 금형만 지정할 수 있습니다',true);
+      chg.push(fix?'전용고정 지정':'전용고정 해제');
+    }
+    if(!chg.length) return toast('변경된 내용이 없습니다');
+    if(!needPin()) return;
+    const oPn=m.pn, oMn=m.mn||'';
+    if(oPn!==pn || oMn!==mn){
+      S.hist.forEach(h=>{ if(h.pn===oPn && (h.mn||'')===oMn){ h.pn=pn; h.mn=mn; } });
+      // 진행 중인 실사 결과 키도 함께 이전
+      const ok0=oPn+'|'+oMn, nk=pn+'|'+mn;
+      if(S.au?.res?.[ok0]){ S.au.res[nk]=S.au.res[ok0]; delete S.au.res[ok0]; }
+    }
+    m.pn=pn; m.mn=mn; m.fix=fix;
+    S.hist.push({pn,mn,loc:m.loc,rack:m.rack||'',at:now,by:S.me,kind:'정보수정',
+      note:chg.join(' · ')+(note?` / ${note}`:''),m4:false});
+    const ok=(await Promise.all([saveMaster(), saveHist()])).every(Boolean);
+    toast(ok?`수정 완료 — ${chg.join(' · ')}`:'수정은 화면에 반영됐지만 서버 저장에 실패했습니다', !ok);
+  }
+  closeM(); renderAll();
+}
+async function delMold(){
+  const m=S.mfEdit; if(!m) return;
+  const onPress = m.loc && m.loc!==STORE;
+  if(!confirm(`${m.pn}${m.mn?' · '+m.mn:''} 금형을 삭제합니다.\n`
+    +`현재 위치 : ${m.loc||'—'}${m.rack?' '+m.rack:''}\n`
+    +(onPress?'\n⚠ 설비에 장착 중인 금형입니다.\n':'')
+    +`\n지금까지의 이동 이력은 그대로 남고, 이력에 '삭제'로 기록됩니다.\n계속할까요?`)) return;
+  const why=prompt('삭제 사유 (예: 폐기, 고객 반환, 중복 등록)');
+  if(why===null) return;
+  if(!why.trim()) return toast('삭제 사유를 입력하세요',true);
+  if(!needPin()) return;
+  const i=S.master.indexOf(m); if(i<0) return;
+  S.master.splice(i,1);
+  if(S.au?.res) delete S.au.res[key(m)];
+  S.hist.push({pn:m.pn,mn:m.mn,loc:m.loc,rack:m.rack||'',at:new Date().toISOString(),by:S.me,
+    kind:'삭제',note:why.trim(),m4:false});
+  const ok=(await Promise.all([saveMaster(), saveHist()])).every(Boolean);
+  toast(ok?`${m.pn} 삭제 완료`:'삭제는 화면에 반영됐지만 서버 저장에 실패했습니다', !ok);
+  S.mfEdit=null; closeM(); renderAll();
 }
 
 /* ═══ 실사 점검 ═══ */
