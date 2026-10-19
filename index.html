@@ -927,12 +927,21 @@ const TABS=[['board','현황판'],['search','금형 조회'],['move','이동 등
 function buildTabs(){
   $('#tabs').innerHTML = TABS.map(([k,n],i)=>
     `<button class="tab${i===0?' on':''}" data-k="${k}">${n}<span class="cnt" id="tc-${k}"></span></button>`).join('');
-  $$('.tab').forEach(b=>b.onclick=()=>{
-    goTab(b.dataset.k);
-    if(b.dataset.k==='audit') renderAudit();
-    if(b.dataset.k==='reg') renderReg();
-    if(b.dataset.k==='cfg'){ sbInfo(); renderFixList(); renderNtfy(); renderRackList(); }
-  });
+  $$('.tab').forEach(b=>b.onclick=()=>openTab(b.dataset.k));
+}
+function openTab(k){
+  if(!TABS.some(t=>t[0]===k)) return;
+  goTab(k);
+  if(k==='audit') renderAudit();
+  if(k==='reg') renderReg();
+  if(k==='cfg'){ sbInfo(); renderFixList(); renderNtfy(); renderRackList(); }
+}
+/* 알림 클릭 링크(#t=탭) → 해당 탭으로 이동 후 주소창 정리 */
+function applyTabHash(){
+  const h=location.hash;
+  if(!h.startsWith('#t=')) return;
+  openTab(decodeURIComponent(h.slice(3)));
+  history.replaceState(null,'',location.pathname+location.search);
 }
 
 /* ═══ 내장 시드 → 초기 표시 ═══ */
@@ -2001,13 +2010,13 @@ function ntIssues(){
     const tgt='대상 : 프레스 '+new Set(onPress.map(m=>m.loc)).size+'호기 '+onPress.length+'건';
     if(left<0) out.push({k:'plan-'+dk, pr:'high', tag:'rotating_light',
       t:M+'월 금형 위치점검 미실시 · '+(-left)+'일 경과',
-      m:'기한이 '+(-left)+'일 지났습니다. (매월 '+P.day+'일까지)\n'+tgt
+      tab:'audit', m:'기한이 '+(-left)+'일 지났습니다. (매월 '+P.day+'일까지)\n'+tgt
         +'\n\n실사를 마치면 알림이 자동으로 멈춥니다.'});
     else if(left===0) out.push({k:'plan-'+dk, pr:'high', tag:'warning',
-      t:M+'월 금형 위치점검 오늘까지',
+      t:M+'월 금형 위치점검 오늘까지', tab:'audit',
       m:'오늘이 '+M+'월 대조점검 기한입니다.\n'+tgt});
     else if(left===1) out.push({k:'plan-'+dk, pr:'default', tag:'calendar',
-      t:M+'월 금형 위치점검 D-1',
+      t:M+'월 금형 위치점검 D-1', tab:'audit',
       m:'내일('+P.day+'일)까지 프레스 라인 대조점검을 실시하세요.\n'+tgt});
   }
   if(P.full.includes(M)){
@@ -2017,36 +2026,45 @@ function ntIssues(){
     const leftF=eom-D;
     if(!fullThis && leftF<=1)
       out.push({k:'full-'+dk2, pr:'high', tag:'rotating_light',
-        t:M+'월 전수 점검 '+(leftF<=0?'오늘까지':'D-1'),
+        t:M+'월 전수 점검 '+(leftF<=0?'오늘까지':'D-1'), tab:'audit',
         m:'보관장 포함 '+S.master.length+'건 대조점검을 마쳐야 합니다.'
           +'\n\n실사를 마치면 알림이 자동으로 멈춥니다.'});
     else if(!fullThis && leftF<=7)
       out.push({k:'full-'+Y+'-'+M, pr:'default', tag:'clipboard',
-        t:M+'월 전수 점검 D-'+leftF,
+        t:M+'월 전수 점검 D-'+leftF, tab:'audit',
         m:'보관장 포함 '+S.master.length+'건 대조점검 대상 월입니다.'});
   }
   if(miss.length) out.push({k:'ms-'+miss.length, pr:'high', tag:'rotating_light',
-    t:'위치 불일치 '+miss.length+'건 미조치',
+    t:'위치 불일치 '+miss.length+'건 미조치', tab:'board',
     m:miss.slice(0,5).map(m=>'· '+m.pn+' : '+m.loc+' → '+(m.msLoc||'?')).join('\n')
       +(miss.length>5?'\n외 '+(miss.length-5)+'건':'')});
   if(dups.length) out.push({k:'dup-'+dups.length, pr:'high', tag:'warning',
-    t:'중복 장착 '+dups.length+'개 호기',
+    t:'중복 장착 '+dups.length+'개 호기', tab:'board',
     m:dups.slice(0,6).join(', ')+(dups.length>6?' 외':'')});
   return out;
 }
 
-async function ntSend(topic, title, msg, pr, tag){
+/* 알림을 눌렀을 때 열 현황판 주소 (웹 주소로 접속한 경우에만) */
+function ntLink(tab){
+  if(!/^https?:$/.test(location.protocol)) return '';
+  return location.origin+location.pathname+(tab?'#t='+tab:'');
+}
+
+async function ntSend(topic, title, msg, pr, tag, tab){
   // 헤더에는 한글을 담을 수 없어 JSON 본문으로 발송한다 (UTF-8 그대로 전달)
+  const body = {
+    topic: String(topic).trim(),
+    title: String(title),
+    message: String(msg),
+    priority: ({min:1,low:2,default:3,high:4,urgent:5})[pr||'default'] || 3,
+    tags: [tag || 'bell']
+  };
+  const url = ntLink(tab);
+  if(url) body.click = url;   // 알림 클릭 시 해당 화면으로 바로 이동
   const res = await fetch('https://ntfy.sh/', {
     method:'POST',
     headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({
-      topic: String(topic).trim(),
-      title: String(title),
-      message: String(msg),
-      priority: ({min:1,low:2,default:3,high:4,urgent:5})[pr||'default'] || 3,
-      tags: [tag || 'bell']
-    })
+    body: JSON.stringify(body)
   });
   if(!res.ok) throw new Error('HTTP '+res.status+' '+(await res.text()).slice(0,120));
 }
@@ -2063,7 +2081,7 @@ async function checkNtfy(manual){
     const prev=c.sent[x.k]||0;
     if(!manual && now-prev < gap) continue;
     if(manual && now-prev < 60000) continue;
-    try{ await ntSend(c.topic, '[금형위치] '+x.t, x.m, x.pr, x.tag); c.sent[x.k]=now; sent++; }
+    try{ await ntSend(c.topic, '[금형위치] '+x.t, x.m, x.pr, x.tag, x.tab); c.sent[x.k]=now; sent++; }
     catch(e){ fail++; console.warn('ntfy 발송 실패', e); }
   }
   Object.keys(c.sent).forEach(k=>{ if(now-c.sent[k] > 90*86400000) delete c.sent[k]; });
@@ -2093,7 +2111,7 @@ async function testNtfy(){
   try{
     await ntSend(t, '[금형위치] 테스트 알림',
       '금형 위치 현황판 알림 연결 확인\n금형 '+S.master.length+'건 · 설비 장착 '+n+'건',
-      'default','white_check_mark');
+      'default','white_check_mark','board');
     toast(t+' 토픽으로 테스트를 보냈습니다');
   }catch(e){ toast('발송 실패 — 네트워크를 확인하세요',true); }
 }
@@ -2715,6 +2733,8 @@ function tick(){
   fillLists(); renderAll(); renderMe();
   await connect();             // 서버 동기화
   fillLists(); renderAll(); renderReg(); sbInfo(); renderMe(); renderFixList(); renderNtfy(); renderRackList();
+  applyTabHash();
+  window.addEventListener('hashchange', applyTabHash);
   setTimeout(()=>checkNtfy(false), 4000);
   if(S.me && !S.users.some(u=>u.name===S.me)) { S.me=''; renderMe(); }
   if(fromQr) toast(S.online?'설정이 적용되어 연결되었습니다':'설정을 적용했으나 연결에 실패했습니다', !S.online);
