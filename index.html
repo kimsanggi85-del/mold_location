@@ -663,7 +663,7 @@ body.capture main{padding:22px}
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
         <span class="chip g" id="ntState">감시 중</span>
         <label class="chk" style="margin:0;padding:7px 11px">
-          <input type="checkbox" id="ntOn"><span>사용</span></label>
+          <input type="checkbox" id="ntOn" onchange="toggleNtfy()"><span>사용</span></label>
         <span style="font-size:11.5px;color:var(--tx3)" id="ntInfo">—</span>
       </div>
       <div class="fld"><label>토픽명</label>
@@ -679,7 +679,7 @@ body.capture main{padding:22px}
       <div class="ntbtns">
         <button class="btn pri" onclick="saveNtfy()">토픽 저장</button>
         <button class="btn" onclick="testNtfy()">테스트 발송</button>
-        <button class="btn" onclick="checkNtfy(true)">지금 점검하고 발송</button>
+        <button class="btn" onclick="checkNow()">지금 점검하고 발송</button>
       </div>
       <p class="hint">휴대폰 <strong>ntfy</strong> 앱에서 위 토픽을 구독하면, 점검 기한이 도래하거나 위치 이상이 생겼을 때 알림이 옵니다.
         알림은 <strong>한국시간 기준 하루 1회</strong>, 정한 시각이 지나면 모든 항목을 <strong>한 건으로 묶어</strong> 보냅니다
@@ -2133,32 +2133,32 @@ async function checkNtfy(manual){
   c.last=new Date().toISOString();
   const iss=ntIssues();
   c.count=iss.length;
-  if(!c.on || !c.topic){ renderNtfy(); if(manual) toast('알림 사용이 꺼져 있습니다',true); return; }
+  if(!c.on || !c.topic){ renderNtInfo(); if(manual) toast('알림 사용이 꺼져 있습니다',true); return; }
 
   if(!manual){
     const k=kstNow();
-    if(c.day===k.day || k.h < (Number(c.hour)||0)){ renderNtfy(); return; }
+    if(c.day===k.day || k.h < (Number(c.hour)||0)){ renderNtInfo(); return; }
     // 다른 기기가 먼저 보냈는지 서버에서 다시 확인 후, 오늘 발송분으로 먼저 기록한다
     const r=await ntRemote();
-    if(r && r.day===k.day){ Object.assign(c, {day:r.day, prev:r.prev||[]}); renderNtfy(); return; }
+    if(r && r.day===k.day){ Object.assign(c, {day:r.day, prev:r.prev||[]}); renderNtInfo(); return; }
     c.day=k.day;
-    if(!(await sbUpload(K_NTFY, c)) && sbConfigured()){ c.day=''; renderNtfy(); return; }
+    if(!(await sbUpload(K_NTFY, c)) && sbConfigured()){ c.day=''; renderNtInfo(); return; }
   }
   let ok=true;
   try{ if(await ntSendBundle(c, iss)) c.prev=iss.map(x=>({k:x.k, t:x.t})); }
   catch(e){ ok=false; console.warn('ntfy 발송 실패', e); if(!manual) c.day=''; }
   if(!iss.length) c.prev=[];
   await sbUpload(K_NTFY, c);
-  renderNtfy();
+  renderNtInfo();
   if(manual) toast(!iss.length ? '이상 없음 — 발송할 내용이 없습니다'
     : ok ? '이상 '+iss.length+'건을 한 건으로 묶어 발송했습니다' : '발송 실패 — 네트워크를 확인하세요', !ok);
 }
 
-async function saveNtfy(){
-  if(!needPin()) return;
+async function saveNtfy(quiet){
+  if(!needPin()) return false;
   const c=ntCfg();
   const u=$('#ntUrl').value.trim();
-  if(u && !/^https?:\/\//i.test(u)) return toast('알림 클릭 주소는 http:// 또는 https:// 로 시작해야 합니다',true);
+  if(u && !/^https?:\/\//i.test(u)){ toast('알림 클릭 주소는 http:// 또는 https:// 로 시작해야 합니다',true); return false; }
   c.on=$('#ntOn').checked;
   c.topic=($('#ntTopic').value||'taejincall').trim();
   c.hour=Number($('#ntHour').value)||0;
@@ -2166,7 +2166,20 @@ async function saveNtfy(){
   c.url=u || (/^https?:$/.test(location.protocol) ? location.origin+location.pathname : '');
   const ok=await sbUpload(K_NTFY, c);
   renderNtfy();
-  toast(ok?'알림 설정을 저장했습니다 — 모든 기기에 반영됩니다':'저장 실패 — 연결을 확인하세요', !ok);
+  if(!quiet || !ok) toast(ok?'알림 설정을 저장했습니다 — 모든 기기에 반영됩니다':'저장 실패 — 연결을 확인하세요', !ok);
+  return ok;
+}
+/* '사용' 체크는 누르는 즉시 저장 (저장 전에 점검이 돌면 꺼진 값으로 되돌아가던 문제 방지) */
+async function toggleNtfy(){
+  const want=$('#ntOn').checked;
+  if(!(await saveNtfy(true))){ $('#ntOn').checked=!!ntCfg().on; return; }
+  toast(want?'알림을 켰습니다 — 모든 기기에 반영됩니다':'알림을 껐습니다');
+}
+/* 지금 점검하고 발송 : 화면에 입력한 설정을 먼저 저장한 뒤 발송 */
+async function checkNow(){
+  if(!$('#ntOn').checked) return toast('먼저 [사용]을 체크하세요',true);
+  if(!(await saveNtfy(true))) return;
+  checkNtfy(true);
 }
 
 async function testNtfy(){
@@ -2196,6 +2209,10 @@ function renderNtfy(){
     `<label><input type="checkbox" id="nti-${k}"${c.items[k]?' checked':''}>
       <span${b?' style="font-weight:700"':''}>${n}</span><small>${d}</small></label>`).join('');
   if($('#ntUrl')) $('#ntUrl').value=c.url||'';
+  renderNtInfo();
+}
+function renderNtInfo(){
+  const c=ntCfg();
   const st=$('#ntState');
   if(st){ st.textContent=c.on?'감시 중':'중지됨'; st.className='chip '+(c.on?'g':'n'); }
   const inf=$('#ntInfo');
