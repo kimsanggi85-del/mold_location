@@ -670,6 +670,10 @@ body.capture main{padding:22px}
             <option value="168">7일마다</option>
           </select></div>
       </div>
+      <div class="row">
+        <div class="fld" style="flex:1 1 100%"><label>알림 클릭 시 열 주소 (현황판 웹 주소)</label>
+          <input type="text" id="ntUrl" placeholder="https://kimsanggi85-del.github.io/mold_location/" spellcheck="false"></div>
+      </div>
       <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
         <button class="btn pri" onclick="saveNtfy()">알림 설정 저장</button>
         <button class="btn" onclick="testNtfy()">테스트 발송</button>
@@ -1989,7 +1993,7 @@ async function fixAllStale(){
 
 /* ══ NTFY 알림 ══ */
 const K_NTFY = 'mold_loc_ntfy_v1';
-const NT_DEF = { on:false, topic:'taejincall', every:24, sent:{}, last:'', count:0 };
+const NT_DEF = { on:false, topic:'taejincall', every:24, url:'', sent:{}, last:'', count:0 };
 function ntCfg(){ return S.ntfy || (S.ntfy = {...NT_DEF}); }
 
 /* 발송 대상 : 기한 도래 · 미조치 이상만 */
@@ -2044,10 +2048,18 @@ function ntIssues(){
   return out;
 }
 
-/* 알림을 눌렀을 때 열 현황판 주소 (웹 주소로 접속한 경우에만) */
+/* 알림을 눌렀을 때 열 현황판 주소
+   설정에 저장한 주소(모든 기기 공유)를 우선 사용하고, 없으면 지금 접속한 웹 주소를 쓴다.
+   PC에서 파일로 열어 발송해도 휴대폰에서 열 수 있는 웹 주소가 붙도록 하기 위함 */
+function ntBase(){
+  const u=String((ntCfg().url)||'').trim();
+  if(/^https?:\/\//i.test(u)) return u.split('#')[0];
+  if(/^https?:$/.test(location.protocol)) return location.origin+location.pathname;
+  return '';
+}
 function ntLink(tab){
-  if(!/^https?:$/.test(location.protocol)) return '';
-  return location.origin+location.pathname+(tab?'#t='+tab:'');
+  const b=ntBase();
+  return b ? b+(tab?'#t='+tab:'') : '';
 }
 
 async function ntSend(topic, title, msg, pr, tag, tab){
@@ -2060,7 +2072,10 @@ async function ntSend(topic, title, msg, pr, tag, tab){
     tags: [tag || 'bell']
   };
   const url = ntLink(tab);
-  if(url) body.click = url;   // 알림 클릭 시 해당 화면으로 바로 이동
+  if(url){
+    body.click = url;   // 알림 본문을 누르면 해당 화면으로 바로 이동
+    body.actions = [{ action:'view', label:'현황판 열기', url, clear:true }];
+  }
   const res = await fetch('https://ntfy.sh/', {
     method:'POST',
     headers:{ 'Content-Type':'application/json' },
@@ -2098,6 +2113,9 @@ async function saveNtfy(){
   c.on=$('#ntOn').checked;
   c.topic=($('#ntTopic').value||'taejincall').trim();
   c.every=Number($('#ntEvery').value)||24;
+  const u=$('#ntUrl').value.trim();
+  if(u && !/^https?:\/\//i.test(u)) return toast('알림 클릭 주소는 http:// 또는 https:// 로 시작해야 합니다',true);
+  c.url=u || (/^https?:$/.test(location.protocol) ? location.origin+location.pathname : '');
   const ok=await sbUpload(K_NTFY, c);
   renderNtfy();
   toast(ok?'알림 설정을 저장했습니다 — 모든 기기에 반영됩니다':'저장 실패 — 연결을 확인하세요', !ok);
@@ -2112,7 +2130,7 @@ async function testNtfy(){
     await ntSend(t, '[금형위치] 테스트 알림',
       '금형 위치 현황판 알림 연결 확인\n금형 '+S.master.length+'건 · 설비 장착 '+n+'건',
       'default','white_check_mark','board');
-    toast(t+' 토픽으로 테스트를 보냈습니다');
+    toast(t+' 토픽으로 테스트를 보냈습니다'+(ntBase()?'':' — 클릭 주소가 없어 링크 없이 발송됨'), !ntBase());
   }catch(e){ toast('발송 실패 — 네트워크를 확인하세요',true); }
 }
 
@@ -2121,6 +2139,7 @@ function renderNtfy(){
   if($('#ntOn')) $('#ntOn').checked=!!c.on;
   if($('#ntTopic')) $('#ntTopic').value=c.topic||'taejincall';
   if($('#ntEvery')) $('#ntEvery').value=String(c.every||24);
+  if($('#ntUrl')) $('#ntUrl').value=c.url||'';
   const st=$('#ntState');
   if(st){ st.textContent=c.on?'감시 중':'중지됨'; st.className='chip '+(c.on?'g':'n'); }
   const inf=$('#ntInfo');
