@@ -5,6 +5,14 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>금형 위치 현황판 | 태진다이텍</title>
+<meta name="theme-color" content="#14161a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="금형위치">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -684,7 +692,11 @@ body.capture main{padding:22px}
       <p class="hint">휴대폰 <strong>ntfy</strong> 앱에서 위 토픽을 구독하면, 점검 기한이 도래하거나 위치 이상이 생겼을 때 알림이 옵니다.
         알림은 <strong>한국시간 기준 하루 1회</strong>, 정한 시각이 지나면 모든 항목을 <strong>한 건으로 묶어</strong> 보냅니다
         (해소된 항목도 함께 표시, 이상 없으면 발송 안 함). 여러 기기에서 앱을 열어 두어도 서버에 발송일을 기록해 <strong>하루 한 번만</strong> 갑니다.
-        앱이 켜진 기기가 하나도 없으면 발송되지 않습니다. 알림을 누르면 위 주소의 현황판이 열립니다.
+        앱이 켜진 기기가 하나도 없으면 발송되지 않습니다. 알림을 누르면 위 주소의 현황판이 열립니다
+        (기한 알림 → 실사 점검 탭, 불일치·중복 알림 → 현황판 탭).<br>
+        <strong>알림을 눌렀을 때 홈 화면의 앱으로 바로 열리게 하려면</strong> 휴대폰 Chrome 에서 위 주소로 접속한 뒤
+        메뉴(⋮) → <strong>홈 화면에 추가 / 앱 설치</strong>로 설치하세요. 설치한 앱은 알림 주소를 가로채어 바로 열립니다.
+        (아이폰은 Safari '홈 화면에 추가'로 설치해도 알림은 Safari 에서 열립니다 — iOS 제한)
         토픽명은 아무나 구독할 수 있으니 <strong>추측하기 어려운 이름</strong>을 쓰세요 (예: <code>taejin_mold_a7k2</code>).</p>
     </div>
 
@@ -2067,13 +2079,16 @@ function ntIssues(){
 }
 
 /* 알림을 눌렀을 때 열 현황판 주소
-   설정에 저장한 주소(모든 기기 공유)를 우선 사용하고, 없으면 지금 접속한 웹 주소를 쓴다.
-   PC에서 파일로 열어 발송해도 휴대폰에서 열 수 있는 웹 주소가 붙도록 하기 위함 */
+   설정에 저장한 주소(모든 기기 공유) → 지금 접속한 웹 주소 → 공개 현황판 주소 순으로 쓴다.
+   PC에서 파일로 열어 발송해도 휴대폰에서 열 수 있는 웹 주소가 반드시 붙도록 하기 위함.
+   휴대폰에 현황판을 홈 화면 앱으로 설치해 두면(manifest.webmanifest) 안드로이드는 이 주소를
+   설치한 앱으로 바로 열어 준다 (앱 범위 scope 안의 주소이므로) */
+const NT_HOME='https://kimsanggi85-del.github.io/mold_location/';   // 공개 현황판 주소 (최종 대비용)
 function ntBase(){
   const u=String((ntCfg().url)||'').trim();
   if(/^https?:\/\//i.test(u)) return u.split('#')[0];
   if(/^https?:$/.test(location.protocol)) return location.origin+location.pathname;
-  return '';
+  return NT_HOME;
 }
 function ntLink(tab){
   const b=ntBase();
@@ -2827,6 +2842,9 @@ function tick(){
   fillLists(); renderAll(); renderReg(); sbInfo(); renderMe(); renderFixList(); renderNtfy(); renderRackList();
   applyTabHash();
   window.addEventListener('hashchange', applyTabHash);
+  // 설치형 웹앱(PWA) 등록 : 휴대폰 홈 화면에 설치하면 NTFY 알림 클릭 시 이 앱으로 바로 열린다
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol))
+    navigator.serviceWorker.register('sw.js').catch(e=>console.warn('서비스워커 등록 실패', e));
   setTimeout(()=>checkNtfy(false), 4000);
   if(S.me && !S.users.some(u=>u.name===S.me)) { S.me=''; renderMe(); }
   if(fromQr) toast(S.online?'설정이 적용되어 연결되었습니다':'설정을 적용했으나 연결에 실패했습니다', !S.online);
