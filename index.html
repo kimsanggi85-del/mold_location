@@ -1127,16 +1127,24 @@ async function mesLoad(){
       get('qc_mes_machine_map?select=machine_code,machine_name','설비 매핑'),
       get(`daily_production?select=ymd,machine_code,mold_code,item_code,start_time,end_time,shot_qty&ymd=gte.${kstYmd(-MES_DAYS)}&mold_code=not.is.null&order=ymd.desc&limit=3000`,'MES 실적')]);
     const mc={}; mp.forEach(r=>{ mc[r.machine_code]=mcOf(r.machine_name); });
-    const by={};
+    /* ① 금형별 가장 최근 실적의 호기 하나만 — 같은 금형이 X→Y 로 옮겨 생산되면 Y 만 '현재'
+       ② 호기별로는 그 호기를 마지막으로 쓴 금형 중 가장 최근 것 */
+    const lastByMold={};
     rows.forEach(r=>{
-      const loc=mc[r.machine_code]; if(!loc || !(Number(r.shot_qty)>0)) return;
+      const loc=mc[r.machine_code]; if(!loc || !MACHINES.includes(loc) || !(Number(r.shot_qty)>0)) return;
       const t=`${r.ymd} ${r.end_time||r.start_time||''}`;
-      if(!by[loc] || t>by[loc].t) by[loc]={t, ymd:r.ymd, mn:r.mold_code, pn:r.item_code, st:r.start_time||'', end:r.end_time||''};
+      const k=normK(r.mold_code);
+      if(!lastByMold[k] || t>lastByMold[k].t) lastByMold[k]={t, loc, ymd:r.ymd, mn:r.mold_code, pn:r.item_code, st:r.start_time||'', end:r.end_time||''};
     });
+    const by={};
+    Object.values(lastByMold).forEach(x=>{ if(!by[x.loc] || x.t>by[x.loc].t) by[x.loc]=x; });
     MESNOW={ ok:true, err:'', at:new Date().toISOString(), byLoc:by };
   }catch(e){ MESNOW.ok=false; MESNOW.err=(e&&e.message)||String(e); }
   if(!S.au.on) renderBoard();
 }
+/* MES 생산 종료 시각 (KST) — 현황판 이동 기록(m.at)이 이보다 나중이면 MES 가 더 오래된 정보 */
+function mesTime(r){ const d=new Date(`${r.ymd}T${(r.end||r.st||'23:59').slice(0,5)}:00+09:00`); return isNaN(d)?0:d.getTime(); }
+const movedAfter=(m,r)=>!!(m&&m.at&&new Date(m.at).getTime()>mesTime(r));
 function mesFind(r){
   const ms=S.master.filter(m=>normK(m.mn)===normK(r.mn));
   return ms.find(m=>normK(m.pn)===normK(r.pn)) || ms[0] || null;
@@ -1149,8 +1157,9 @@ function mesDiff(){
     const m=mesFind(r);
     const others=S.master.filter(x=>x.loc===loc && normK(x.mn)!==normK(r.mn) && !x.fix);
     if(!m){ out.unreg.push({loc,r,cand:others}); return; }   // 그 호기의 기존 금형 = 금형번호 표기 차이·미입력 후보
-    if(m.loc!==loc) out.wrong.push({loc,r,m}); else out.ok++;
-    others.forEach(x=>out.stale.push({loc,r,m:x}));
+    if(m.loc!==loc){ if(movedAfter(m,r)) out.ok++; else out.wrong.push({loc,r,m}); }   // 생산 뒤 현황판에서 옮긴 금형은 그대로 둔다
+    else out.ok++;
+    others.filter(x=>!movedAfter(x,r)).forEach(x=>out.stale.push({loc,r,m:x}));
   });
   return out;
 }
@@ -1159,7 +1168,7 @@ function mesPanel(){
     <h4 style="color:var(--tx2)">MES 생산실적 대조 불가</h4><p>${esc(MESNOW.err)}</p></div>` : '';
   const d=mesDiff();
   if(!d.wrong.length && !d.unreg.length && !d.stale.length) return '';
-  const it=(x,extra)=>`<button onclick="openSwap('${esc(x.loc)}')" title="${esc(x.loc)} 교체 화면 열기">${esc(x.loc)}<b>${esc(extra)}</b></button>`;
+  const it=(x,extra)=>`<button onclick="openSwap(${esc(JSON.stringify(x.loc))})" title="${esc(x.loc)} 교체 화면 열기">${esc(x.loc)}<b>${esc(extra)}</b></button>`;
   return `<div class="warnpanel" id="mesPanel">
     <h4>MES 생산실적 대조 — 위치 불일치 ${d.wrong.length}건 · 미등록 ${d.unreg.length}건 · 탈착 누락 의심 ${d.stale.length}건</h4>
     <p>MES 최근 생산실적(${esc(kstYmd(-MES_DAYS))}~오늘) 기준으로 호기별 <strong>현재 생산 중인 금형</strong>과 현황판 위치를 대조했습니다.
@@ -1177,6 +1186,7 @@ function mesPanel(){
   </div>`;
 }
 async function mesApply(){
+  await fetchAll();          // 다른 기기의 최신 현황판을 먼저 받는다 (덮어쓰기 방지)
   await mesLoad();
   const d=mesDiff();
   if(!d.wrong.length) return toast('반영할 불일치가 없습니다');
