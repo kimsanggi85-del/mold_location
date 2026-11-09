@@ -5,6 +5,14 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>금형 위치 현황판 | 태진다이텍</title>
+<meta name="theme-color" content="#14161a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="금형위치">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -524,6 +532,24 @@ body.capture main{padding:22px}
 
   <!-- 실사 점검 -->
   <section class="page" id="p-audit">
+    <div class="secthead noprint"><h2>MES 설비현황 대조</h2><div class="rule"></div>
+      <span class="note" id="mesNote">MES 실시간 설비현황의 호기별 장착 금형과 현황판을 자동 대조합니다 (현황판 탭의 '생산실적 대조'는 최근 생산 기록 기준)</span></div>
+    <div class="card noprint" style="margin-bottom:18px" id="mesCard">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="chip n" id="mesState">대조 전</span>
+        <span style="font-size:12px;color:var(--tx3)" id="mesInfo">—</span>
+        <button class="btn sm" style="margin-left:auto" onclick="mesRun(true)">지금 대조</button>
+      </div>
+      <div class="tw" style="max-height:380px"><table>
+        <thead><tr><th style="width:120px">호기</th><th>MES 장착 금형</th><th>현황판 장착 금형</th><th style="width:130px">판정</th><th style="width:120px">MES 최근 타발</th><th style="width:90px"></th></tr></thead>
+        <tbody id="mesBody"><tr><td colspan="6" style="color:var(--tx3)">아직 대조하지 않았습니다</td></tr></tbody>
+      </table></div>
+      <p class="hint">MES 설비현황(<code>machine_status</code>)의 호기별 장착 금형번호와 현황판 장착 금형을 비교합니다.
+        앱이 켜져 있으면 <strong>5분마다 자동 대조</strong>하고, 불일치는 설정에서 켠 경우 <strong>NTFY 하루 1회 알림</strong>에 포함됩니다.
+        <strong>불일치</strong>는 MES 기준으로 실물을 확인한 뒤 [교체 등록]으로 현황판을 맞추세요.
+        <strong>MES 잔존 작업지시</strong>는 MES에 금형이 걸려 있지만 타발 기록이 없는 호기로, 생산관리에 작업지시 마감을 요청할 대상입니다.</p>
+    </div>
+
     <div class="secthead"><h2>실사 기록</h2><div class="rule"></div>
       <span class="note">행을 누르면 점검 내역이 열립니다</span></div>
     <div class="tw noprint" style="max-height:340px;margin-bottom:8px"><table>
@@ -682,9 +708,14 @@ body.capture main{padding:22px}
         <button class="btn" onclick="checkNow()">지금 점검하고 발송</button>
       </div>
       <p class="hint">휴대폰 <strong>ntfy</strong> 앱에서 위 토픽을 구독하면, 점검 기한이 도래하거나 위치 이상이 생겼을 때 알림이 옵니다.
+        <strong>MES 설비현황 불일치</strong>는 MES에 장착된 금형과 현황판이 다른 호기를 5분마다 대조해 알려 줍니다(실사 점검 탭에서 상세 확인).
         알림은 <strong>한국시간 기준 하루 1회</strong>, 정한 시각이 지나면 모든 항목을 <strong>한 건으로 묶어</strong> 보냅니다
         (해소된 항목도 함께 표시, 이상 없으면 발송 안 함). 여러 기기에서 앱을 열어 두어도 서버에 발송일을 기록해 <strong>하루 한 번만</strong> 갑니다.
-        앱이 켜진 기기가 하나도 없으면 발송되지 않습니다. 알림을 누르면 위 주소의 현황판이 열립니다.
+        앱이 켜진 기기가 하나도 없으면 발송되지 않습니다. 알림을 누르면 위 주소의 현황판이 열립니다
+        (기한 알림 → 실사 점검 탭, 불일치·중복 알림 → 현황판 탭).<br>
+        <strong>알림을 눌렀을 때 홈 화면의 앱으로 바로 열리게 하려면</strong> 휴대폰 Chrome 에서 위 주소로 접속한 뒤
+        메뉴(⋮) → <strong>홈 화면에 추가 / 앱 설치</strong>로 설치하세요. 설치한 앱은 알림 주소를 가로채어 바로 열립니다.
+        (아이폰은 Safari '홈 화면에 추가'로 설치해도 알림은 Safari 에서 열립니다 — iOS 제한)
         토픽명은 아무나 구독할 수 있으니 <strong>추측하기 어려운 이름</strong>을 쓰세요 (예: <code>taejin_mold_a7k2</code>).</p>
     </div>
 
@@ -941,7 +972,7 @@ function buildTabs(){
 function openTab(k){
   if(!TABS.some(t=>t[0]===k)) return;
   goTab(k);
-  if(k==='audit') renderAudit();
+  if(k==='audit'){ renderAudit(); mesRun(false); }
   if(k==='reg') renderReg();
   if(k==='cfg'){ sbInfo(); renderFixList(); renderNtfy(); renderRackList(); }
 }
@@ -977,12 +1008,20 @@ const K_CONFIG = 'mold_loc_config_v1';
 const K_PINS   = 'user_pins';                 // 사내 공용 담당자·PIN 마스터
 const SB_KEYS  = [K_MASTER, K_HIST, K_AUDIT, K_CONFIG, K_PINS, 'mold_loc_ntfy_v1', 'mold_loc_rackmaster_v1'];
 
-const HARDCODED_SB_URL = /*__CONN_URL__*/'https://omngtyewdaqpphnzeate.supabase.co';
+const HARDCODED_SB_URL = /*__CONN_URL__*/'https://omngtyewdaqpphnzeate.supabase.co';   // SmartFactory (2026-10-23 DB 통합)
 const HARDCODED_SB_KEY = /*__CONN_KEY__*/'sb_publishable_9j2YkkL-7ul1TrhH-NjVdQ_vWDG2-1D';
-/* [2026-10-27 Supabase 통합] 이 기기에 저장된 옛 DB 주소(ebthltd…)·키는 무시하고 SmartFactory 로 바꾼다 (설정 초기화 불필요) */
-(function(){try{function f(u,k){var v=localStorage.getItem(u)||'';if(v.indexOf('ebthltd')>=0){localStorage.setItem(u,'https://omngtyewdaqpphnzeate.supabase.co');localStorage.setItem(k,'sb_publishable_9j2YkkL-7ul1TrhH-NjVdQ_vWDG2-1D');}}f('sbUrl','sbKey');}catch(e){}})();
+/* 구 프로젝트(DB 통합 전) 주소 — 이 주소가 저장된 기기는 자동으로 SmartFactory로 전환한다 (구 DB는 2026-10-08 이후 갱신 없음) */
+const LEGACY_SB_URLS = ['https://ebthltdmxpzlkfwvdloz.supabase.co'];
 (function autoSetupSupabase(){
   try{
+    const cur=(localStorage.getItem('sbUrl')||'').trim().replace(/\/+$/,'');
+    if(cur && LEGACY_SB_URLS.includes(cur)){
+      localStorage.setItem('sbUrl', HARDCODED_SB_URL);
+      localStorage.setItem('sbKey', HARDCODED_SB_KEY);
+      localStorage.removeItem('mlDirty');                 // 구 서버로 보낼 미전송분은 폐기
+      ['mold_loc_master_v1','mold_loc_history_v1','mold_loc_audit_v1','mold_loc_config_v1','mold_loc_ntfy_v1','mold_loc_rackmaster_v1']
+        .forEach(k=>localStorage.removeItem('ml:'+k));    // 구 서버 캐시 제거 → 새 서버에서 다시 받음
+    }
     if(!localStorage.getItem('sbUrl') && HARDCODED_SB_URL) localStorage.setItem('sbUrl', HARDCODED_SB_URL);
     if(!localStorage.getItem('sbKey') && HARDCODED_SB_KEY) localStorage.setItem('sbKey', HARDCODED_SB_KEY);
   }catch(e){}
@@ -2108,6 +2147,87 @@ async function fixAllStale(){
 }
 
 
+/* ══ MES 설비현황 대조 ══
+   MES 연동 테이블 machine_status(호기별 현재 장착 금형) + qc_mes_machine_map(MES 설비코드 → 호기번호)를
+   현황판과 같은 Supabase 프로젝트에서 읽어, 호기번호 기준으로 현황판 장착 금형과 비교한다 */
+function mesState(){ return S.mes || (S.mes={at:'', rows:[], err:'', mesAt:''}); }
+const mnNorm = s => String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
+const mnSame = (a,b)=>{ a=mnNorm(a); b=mnNorm(b); return !!a && !!b && (a===b || a.includes(b) || b.includes(a)); };
+const hoOf = loc => { const m=String(loc||'').match(/^(\d+)/); return m?Number(m[1]):null; };
+
+async function mesFetch(){
+  if(!sbConfigured()) throw new Error('서버 미연결');
+  const h={'apikey':getSbKey(),'Authorization':`Bearer ${getSbKey()}`};
+  const [r1,r2]=await Promise.all([
+    fetch(`${getSbUrl()}/rest/v1/machine_status?select=machine_code,machine_name,current_mold,current_item_code,item_name,is_producing,last_shot_at,updated_at`,{headers:h}),
+    fetch(`${getSbUrl()}/rest/v1/qc_mes_machine_map?select=machine_code,ho,machine_name`,{headers:h})]);
+  if(!r1.ok||!r2.ok) throw new Error('MES 테이블 조회 실패 (HTTP '+(r1.ok?r2.status:r1.status)+') — 이 서버에 MES 연동 테이블이 없을 수 있습니다');
+  const st=await r1.json(), map=await r2.json();
+  const ho={}; map.forEach(x=>{ ho[x.machine_code]=Number(x.ho); });
+  return st.map(x=>({...x, ho:ho[x.machine_code]??null})).filter(x=>x.ho!=null);
+}
+/* 판정 : bad(불일치·장착없음) / warn(현황판만 장착·중복) / low(참고) / ok(일치) */
+function mesCompare(mes){
+  const rows=[];
+  const mcOf = ho => MACHINES.find(m=>hoOf(m)===ho) || null;
+  mes.forEach(x=>{
+    const mc=mcOf(x.ho);
+    const on = mc ? S.master.filter(m=>m.loc===mc) : [];
+    const idle = !x.is_producing && !x.last_shot_at;
+    let k, pr;
+    if(!x.current_mold){ k = on.length?'현황판만 장착':'양쪽 비어 있음'; pr = on.length?'warn':'ok'; }
+    else if(!mc){ k='현황판 설비목록에 없는 호기'; pr='low'; }
+    else if(!on.length){ k = idle?'MES 잔존 작업지시':'현황판 장착 없음'; pr = idle?'low':'bad'; }
+    else if(on.some(m=>mnSame(m.mn,x.current_mold))){ k = on.length>1?'일치 (중복 장착)':'일치'; pr = on.length>1?'warn':'ok'; }
+    else { k='불일치'; pr='bad'; }
+    rows.push({ho:x.ho, mc: mc||('호기 '+x.ho), mesMold:x.current_mold||'', mesItem:x.current_item_code||'', mesName:x.item_name||'',
+      board:on, k, pr, last:x.last_shot_at, producing:!!x.is_producing, mesAt:x.updated_at});
+  });
+  const mesHos=new Set(mes.map(x=>x.ho));
+  MACHINES.forEach(mc=>{ const h=hoOf(mc); if(h==null||mesHos.has(h)) return;
+    const on=S.master.filter(m=>m.loc===mc);
+    if(on.length) rows.push({ho:h, mc, mesMold:'', mesItem:'', mesName:'', board:on, k:'MES 미연동 호기', pr:'low', last:null, producing:false}); });
+  const ord={bad:0,warn:1,low:2,ok:3};
+  rows.sort((a,b)=>ord[a.pr]-ord[b.pr] || a.ho-b.ho);
+  return rows;
+}
+function mesIssues(){ return (mesState().rows||[]).filter(r=>r.pr==='bad'); }
+let _mesBusy=false;
+async function mesRun(manual){
+  const st=mesState();
+  if(_mesBusy) return st;
+  _mesBusy=true;
+  try{
+    const mes=await mesFetch();
+    st.rows=mesCompare(mes); st.err=''; st.at=new Date().toISOString();
+    st.mesAt=mes.map(x=>x.updated_at||'').sort().slice(-1)[0]||'';
+  }catch(e){ st.err=(e&&e.message)||'조회 실패'; if(manual) toast('MES 대조 실패 — '+st.err, true); }
+  finally{ _mesBusy=false; }
+  renderMes();
+  if($('#p-board')?.classList.contains('on') && !S.au?.on) renderBoard();
+  if(manual && !st.err){ const n=mesIssues().length; toast(n?`MES 대조 완료 — 불일치 ${n}호기`:'MES 대조 완료 — 가동 호기 모두 일치', n>0); }
+  return st;
+}
+function renderMes(){
+  const st=mesState(), chip=$('#mesState'), info=$('#mesInfo'), body=$('#mesBody');
+  if(!chip||!info||!body) return;
+  const bad=mesIssues().length;
+  if(st.err){ chip.textContent='조회 실패'; chip.className='chip b'; info.textContent=st.err; return; }
+  if(!st.at){ chip.textContent='대조 전'; chip.className='chip n'; return; }
+  chip.textContent = bad?`불일치 ${bad}호기`:'모두 일치'; chip.className='chip '+(bad?'b':'g');
+  info.textContent=`대조 ${fmt(st.at)} · MES 갱신 ${fmt(st.mesAt)} · 가동 호기 ${st.rows.filter(r=>r.mesMold).length}`;
+  const cls={bad:'b',warn:'w',low:'n',ok:'g'};
+  body.innerHTML = st.rows.length ? st.rows.map(r=>`
+    <tr${r.pr==='bad'?' style="background:rgba(224,82,79,.06)"':''}>
+      <td>${esc(r.mc)}</td>
+      <td>${r.mesMold?`<span class="num">${esc(r.mesMold)}</span>${r.mesItem?` <span style="color:var(--tx3)">${esc(r.mesItem)}</span>`:''}${r.producing?' <span class="chip g">가동</span>':''}`:'<span style="color:var(--tx3)">—</span>'}</td>
+      <td>${r.board.length? r.board.map(b=>`<span class="num">${esc(b.mn||'—')}</span> <span style="color:var(--tx3)">${esc(b.pn)}</span>`).join('<br>') : '<span style="color:var(--tx3)">장착 없음</span>'}</td>
+      <td><span class="chip ${cls[r.pr]}">${esc(r.k)}</span></td>
+      <td class="num" style="color:var(--tx3)">${r.last?fmt(r.last):'—'}</td>
+      <td>${(r.pr==='bad'||r.pr==='warn') && MACHINES.includes(r.mc) ? `<button class="btn sm" onclick="openSwap('${esc(r.mc)}')">교체 등록</button>`:''}</td>
+    </tr>`).join('') : '<tr><td colspan="6" style="color:var(--tx3)">MES 설비 정보가 없습니다</td></tr>';
+}
+
 /* ══ NTFY 알림 ══ */
 const K_NTFY = 'mold_loc_ntfy_v1';
 /* 알림 항목 : [키, 이름, 설명, 기본 사용, 강조] */
@@ -2116,13 +2236,15 @@ const NT_ITEMS = [
   ['soon',  '월간 위치점검 임박',             '(기한 7일 이내)',                 false, false],
   ['full',  '전수 점검 기한 도래',            '(전수 실사 월 · 말일 7일 이내)',    true,  true],
   ['ms',    '위치 불일치 미조치',             '(실사 불일치 후 보정 전)',          true,  true],
-  ['dup',   '중복 장착 호기',                 '(한 호기에 금형 2건 이상)',         true,  false]
+  ['dup',   '중복 장착 호기',                 '(한 호기에 금형 2건 이상)',         true,  false],
+  ['mes',   'MES 설비현황 불일치',            '(MES 실시간 장착 금형 ≠ 현황판 · 5분마다 대조)', true,  true]
 ];
 const NT_DEF = { on:false, topic:'taejincall', hour:8, url:'',
   items:Object.fromEntries(NT_ITEMS.map(x=>[x[0],x[3]])), day:'', prev:[], last:'', count:0 };
 function ntCfg(){
   const c = S.ntfy || (S.ntfy = {...NT_DEF});
   if(!c.items) c.items = {...NT_DEF.items};
+  NT_ITEMS.forEach(x=>{ if(c.items[x[0]]==null) c.items[x[0]]=x[3]; });   // 새로 생긴 항목은 기본값으로
   if(c.hour==null) c.hour = 8;
   if(!Array.isArray(c.prev)) c.prev = [];
   return c;
@@ -2170,17 +2292,28 @@ function ntIssues(){
   if(on.dup && dups.length) out.push({k:'dup', pr:'high', tab:'board',
     t:'중복 장착 '+dups.length+'개 호기',
     m:dups.slice(0,6).join(', ')+(dups.length>6?' 외':'')});
+  if(on.mes){
+    const mi=mesIssues();
+    if(mi.length) out.push({k:'mes', pr:'high', tab:'audit',
+      t:'MES 설비현황 불일치 '+mi.length+'호기',
+      m:mi.slice(0,6).map(r=>r.mc.split(' ')[0]+'호기  MES '+(r.mesMold||'—')+(r.mesItem?' ('+r.mesItem+')':'')
+          +'  /  현황판 '+(r.board.length?r.board.map(b=>b.mn||b.pn).join(', '):'장착 없음')).join('\n')
+        +(mi.length>6?'\n외 '+(mi.length-6)+'호기':'')});
+  }
   return out;
 }
 
 /* 알림을 눌렀을 때 열 현황판 주소
-   설정에 저장한 주소(모든 기기 공유)를 우선 사용하고, 없으면 지금 접속한 웹 주소를 쓴다.
-   PC에서 파일로 열어 발송해도 휴대폰에서 열 수 있는 웹 주소가 붙도록 하기 위함 */
+   설정에 저장한 주소(모든 기기 공유) → 지금 접속한 웹 주소 → 공개 현황판 주소 순으로 쓴다.
+   PC에서 파일로 열어 발송해도 휴대폰에서 열 수 있는 웹 주소가 반드시 붙도록 하기 위함.
+   휴대폰에 현황판을 홈 화면 앱으로 설치해 두면(manifest.webmanifest) 안드로이드는 이 주소를
+   설치한 앱으로 바로 열어 준다 (앱 범위 scope 안의 주소이므로) */
+const NT_HOME='https://kimsanggi85-del.github.io/mold_location/';   // 공개 현황판 주소 (최종 대비용)
 function ntBase(){
   const u=String((ntCfg().url)||'').trim();
   if(/^https?:\/\//i.test(u)) return u.split('#')[0];
   if(/^https?:$/.test(location.protocol)) return location.origin+location.pathname;
-  return '';
+  return NT_HOME;
 }
 function ntLink(tab){
   const b=ntBase();
@@ -2238,6 +2371,7 @@ async function ntRemote(){
 async function checkNtfy(manual){
   const c=ntCfg();
   c.last=new Date().toISOString();
+  if(c.items.mes) await mesRun(false);          // MES 설비현황 최신 대조 후 판정
   const iss=ntIssues();
   c.count=iss.length;
   if(!c.on || !c.topic){ renderNtInfo(); if(manual) toast('알림 사용이 꺼져 있습니다',true); return; }
@@ -2939,6 +3073,9 @@ function tick(){
   fillLists(); renderAll(); renderReg(); sbInfo(); renderMe(); renderFixList(); renderNtfy(); renderRackList();
   applyTabHash();
   window.addEventListener('hashchange', applyTabHash);
+  // 설치형 웹앱(PWA) 등록 : 휴대폰 홈 화면에 설치하면 NTFY 알림 클릭 시 이 앱으로 바로 열린다
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol))
+    navigator.serviceWorker.register('sw.js').catch(e=>console.warn('서비스워커 등록 실패', e));
   setTimeout(()=>checkNtfy(false), 4000);
   if(S.me && !S.users.some(u=>u.name===S.me)) { S.me=''; renderMe(); }
   if(fromQr) toast(S.online?'설정이 적용되어 연결되었습니다':'설정을 적용했으나 연결에 실패했습니다', !S.online);
