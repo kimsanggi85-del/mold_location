@@ -1008,10 +1008,20 @@ const K_CONFIG = 'mold_loc_config_v1';
 const K_PINS   = 'user_pins';                 // 사내 공용 담당자·PIN 마스터
 const SB_KEYS  = [K_MASTER, K_HIST, K_AUDIT, K_CONFIG, K_PINS, 'mold_loc_ntfy_v1', 'mold_loc_rackmaster_v1'];
 
-const HARDCODED_SB_URL = /*__CONN_URL__*/'https://ebthltdmxpzlkfwvdloz.supabase.co';
-const HARDCODED_SB_KEY = /*__CONN_KEY__*/'sb_publishable_ZSgcZapb7cTgFezGmOV_ow_9MT15SnS';
+const HARDCODED_SB_URL = /*__CONN_URL__*/'https://omngtyewdaqpphnzeate.supabase.co';   // SmartFactory (2026-10-23 DB 통합)
+const HARDCODED_SB_KEY = /*__CONN_KEY__*/'sb_publishable_9j2YkkL-7ul1TrhH-NjVdQ_vWDG2-1D';
+/* 구 프로젝트(DB 통합 전) 주소 — 이 주소가 저장된 기기는 자동으로 SmartFactory로 전환한다 (구 DB는 2026-10-08 이후 갱신 없음) */
+const LEGACY_SB_URLS = ['https://ebthltdmxpzlkfwvdloz.supabase.co'];
 (function autoSetupSupabase(){
   try{
+    const cur=(localStorage.getItem('sbUrl')||'').trim().replace(/\/+$/,'');
+    if(cur && LEGACY_SB_URLS.includes(cur)){
+      localStorage.setItem('sbUrl', HARDCODED_SB_URL);
+      localStorage.setItem('sbKey', HARDCODED_SB_KEY);
+      localStorage.removeItem('mlDirty');                 // 구 서버로 보낼 미전송분은 폐기
+      ['mold_loc_master_v1','mold_loc_history_v1','mold_loc_audit_v1','mold_loc_config_v1','mold_loc_ntfy_v1','mold_loc_rackmaster_v1']
+        .forEach(k=>localStorage.removeItem('ml:'+k));    // 구 서버 캐시 제거 → 새 서버에서 다시 받음
+    }
     if(!localStorage.getItem('sbUrl') && HARDCODED_SB_URL) localStorage.setItem('sbUrl', HARDCODED_SB_URL);
     if(!localStorage.getItem('sbKey') && HARDCODED_SB_KEY) localStorage.setItem('sbKey', HARDCODED_SB_KEY);
   }catch(e){}
