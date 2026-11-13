@@ -356,6 +356,19 @@ body.capture main{padding:22px}
   input[type=text],input[type=password],input[type=month],input[type=number],input[type=date],input[type=search],input:not([type]),select,textarea{font-size:16px;padding:11px 12px}
   .btn{min-height:40px;padding:9px 14px}
   .btn.sm{min-height:34px;padding:7px 12px;font-size:12.5px}
+  /* 모바일 보정 : 섹션 제목 한 줄 유지(설명은 아래 줄), 모드 버튼·체크박스 탭 영역 확대, 토스트는 상단, 최소 글자 11px */
+  .secthead{flex-wrap:wrap;row-gap:4px}
+  .secthead h2{white-space:nowrap}
+  .secthead .note{flex-basis:100%;order:3}
+  .mode{min-height:40px;padding:9px 16px}
+  .chk input,.ntbox label input,.tw input[type=radio],.tw input[type=checkbox],.dismount input[type=checkbox]{width:20px;height:20px}
+  .tw label{padding:4px 0}
+  .toast{bottom:auto;top:12px;transform:translateX(-50%) translateY(-80px);max-width:calc(100vw - 24px);text-align:center}
+  .toast.on{transform:translateX(-50%) translateY(0)}
+  .chip,.legend i,.tab .cnt,.bay .mc,.bay .foot,.bay .msnote,.rack .rn,.msrow .meta{font-size:11px}
+  .mx{font-size:11px}
+  .tabs{position:relative;scroll-padding:0 24px}
+  .tabs::after{content:'';position:sticky;right:0;top:0;flex:none;width:28px;margin-left:-28px;background:linear-gradient(90deg,transparent,var(--bg));pointer-events:none}
 
   header{position:sticky;top:0}
   .hbar{padding:9px 13px;gap:9px}
@@ -1777,6 +1790,7 @@ function setMode(m){
 }
 function goTab(k){
   $$('.tab').forEach(x=>x.classList.toggle('on',x.dataset.k===k));
+  try{ $$('.tab').find(x=>x.dataset.k===k)?.scrollIntoView({block:'nearest',inline:'center'}); }catch(e){}
   $$('.page').forEach(p=>p.classList.remove('on')); $('#p-'+k).classList.add('on');
 }
 
@@ -2820,7 +2834,7 @@ function renderRackList(){
       <td><input type="number" class="rkCap" min="0" value="${r.cap||0}" style="padding:6px 8px;font-size:13px;text-align:center"></td>
       <td style="text-align:center">
         <span class="chip ${over?'b':full?'w':'g'}">${u}${r.cap>0?' / '+r.cap:''}</span>
-        ${a>u?`<div style="font-size:10px;color:var(--tx3);margin-top:2px">배정 ${a}</div>`:''}
+        ${a>u?`<div style="font-size:11px;color:var(--tx3);margin-top:2px">배정 ${a}</div>`:''}
       </td>
       <td style="text-align:center"><input type="checkbox" class="rkUse" ${r.use!==false?'checked':''}
         style="width:16px;height:16px;accent-color:var(--ok)"></td>
