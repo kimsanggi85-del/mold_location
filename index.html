@@ -720,7 +720,8 @@ td{border-bottom:1px solid #243049}
         <button class="btn pri" style="width:100%" onclick="saveMcStatusUI()">상태 저장</button>
         <p class="hint">설비 수리·계획 정지 등으로 호기를 세울 때 지정합니다(PIN 필요). 현황판 타일에 상태와 사유가 표시되고,
           MES 대조에서 그 호기는 MES가 실제로 가동 중이 아닌 한 불일치로 울리지 않습니다.
-          내린 금형은 위 교체 화면에서 <strong>보관함(반납)</strong>으로 처리하세요. 가동을 재개하면 상태를 <strong>가동</strong>으로 바꿔 해제합니다. 지정·해제는 이력에 남습니다.</p>
+          내린 금형은 위 교체 화면에서 <strong>보관함(반납)</strong>으로 처리하세요. 가동을 재개하면 상태를 <strong>가동</strong>으로 바꿔 해제합니다.
+          MES에서 그 호기의 <strong>가동이 두 번 연속(약 5분 간격) 감지되면 자동으로 해제</strong>되고 이력에 '자동 해제'로 남습니다. 그때 장착 금형이 현황판에 없으면 불일치로 표시되니 교체 등록을 해 주세요. 지정·해제는 이력에 남습니다.</p>
       </div>
     </div>
 
@@ -2526,12 +2527,44 @@ async function mesRun(manual){
     const mes=await mesFetch();
     st.rows=mesCompare(mes); st.err=''; st.at=new Date().toISOString();
     st.mesAt=mes.map(x=>x.updated_at||'').sort().slice(-1)[0]||'';
+    await mesAutoRelease(mes);
   }catch(e){ st.err=(e&&e.message)||'조회 실패'; if(manual) toast('MES 대조 실패 — '+st.err, true); }
   finally{ _mesBusy=false; }
   renderMes();
   if($('#p-board')?.classList.contains('on') && !S.au?.on) renderBoard();
   if(manual && !st.err){ const n=mesIssues().length; toast(n?`MES 대조 완료 — 불일치 ${n}호기`:'MES 대조 완료 — 가동 호기 모두 일치', n>0); }
   return st;
+}
+/* 설비 상태(설비 수리 등)가 지정된 호기에서 MES 가동이 감지되면 상태를 자동 해제한다.
+   시운전 몇 타에 풀리지 않도록, 5분 간격 대조에서 두 번 연속 '가동 중(is_producing)'이고
+   마지막 타발이 상태 지정 이후일 때만 해제. 이력에 '설비상태 · 자동 해제'로 남긴다 */
+const MES_RELEASE_GAP = 4*60*1000;   // 두 번째 감지는 첫 감지 4분 이후여야 함 (5분 주기 대조 기준 연속 2회)
+async function mesAutoRelease(mes){
+  if(!S.mcs || !Object.keys(S.mcs).length) return;
+  const st=mesState(); st.prodSeen ||= {};
+  const now=Date.now(), released=[];
+  for(const x of mes){
+    const mc=MACHINES.find(m=>hoOf(m)===x.ho); if(!mc) continue;
+    const hs=mcStatus(mc);
+    const running = !!x.is_producing && x.last_shot_at && (now-new Date(x.last_shot_at).getTime()) < 15*60*1000;
+    if(!hs || !running || !x.last_shot_at || new Date(x.last_shot_at).getTime() <= new Date(hs.at).getTime()){ delete st.prodSeen[mc]; continue; }
+    const first=st.prodSeen[mc];
+    if(!first){ st.prodSeen[mc]=now; continue; }
+    if(now-first < MES_RELEASE_GAP) continue;
+    // 다른 기기가 먼저 해제했는지 이력으로 확인 (중복 기록 방지)
+    const dup=S.hist.slice(-50).some(h=>h.kind==='설비상태' && h.loc===mc && /자동 해제/.test(h.note||'') && (now-new Date(h.at).getTime()) < 30*60*1000);
+    delete S.mcs[mc]; delete st.prodSeen[mc];
+    if(!dup) S.hist.push({pn:'[가동 복귀]', mn:'', loc:mc, rack:'', at:new Date().toISOString(), by:'자동(MES)', kind:'설비상태', m4:false,
+      note:`${mc} 설비 상태 '${hs.st}' 자동 해제 · MES 가동 감지 (${x.current_mold||''} ${x.current_item_code||''})`+(hs.note?` · 이전 사유: ${hs.note}`:'')});
+    released.push(mc);
+  }
+  if(!released.length) return;
+  await Promise.all([sbUpload(K_MCS, S.mcs), saveHist()]);
+  // 재가동 호기의 현황판 장착 상태는 그대로이므로, 금형 미등록이면 다음 대조에서 불일치로 표시된다
+  st.rows=mesCompare(mes);
+  toast(`${released.join(', ')} — MES 가동 감지, 설비 상태를 자동 해제했습니다. 장착 금형을 등록하세요`);
+  push('금형 위치 현황판', `${released.join(', ')} 재가동 감지 · 설비 상태 자동 해제\n장착 금형을 현황판에 등록하세요`);
+  renderAll();
 }
 function renderMes(){
   const st=mesState(), chip=$('#mesState'), info=$('#mesInfo'), body=$('#mesBody');
