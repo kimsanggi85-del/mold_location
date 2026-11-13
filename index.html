@@ -94,6 +94,10 @@ main{max-width:1500px;margin:0 auto;padding:20px}
 .agebar i{display:block;height:100%;background:var(--tx3)}
 .bay.s0 .agebar i{background:var(--ok)}.bay.s1 .agebar i{background:var(--warn)}.bay.s2 .agebar i{background:var(--bad)}
 .bay .vac{font-size:12px;color:var(--tx3);padding:6px 0 2px}
+.bay.hold{border-color:rgba(217,154,43,.55);background:linear-gradient(180deg,rgba(217,154,43,.07),transparent 60%),var(--panel)}
+.bay.hold .stripe{background:var(--warn)}
+.badge.hold{background:rgba(217,154,43,.2);color:var(--warn)}
+.bay .holdnote{font-size:11px;color:var(--warn);margin-top:4px;line-height:1.5}
 
 /* ── 보관함 ── */
 .racks{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:8px}
@@ -496,6 +500,19 @@ body.capture main{padding:22px}
           <br>기본값은 <strong>유지</strong>입니다. 실제로 내린 금형만 <strong>보관함(반납)</strong>으로 바꾸세요.
           <strong>보관함</strong>으로 바꾸면 그 금형의 지정 보관위치가 자동으로 채워집니다. 다른 곳에 두었다면 직접 바꾸세요.</p>
       </div>
+
+      <div class="card" style="margin-top:14px" id="mcsCard">
+        <h3>설비 상태 표시 <span style="font-weight:500;color:var(--tx3);font-size:12px">· 위에서 선택한 호기</span></h3>
+        <div id="mcsNow" style="background:#15181d;border:1px solid var(--line);border-radius:7px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;color:var(--tx2)"></div>
+        <div class="row">
+          <div class="fld"><label>상태</label><select id="mcsSt"></select></div>
+          <div class="fld"><label>사유 · 비고</label><input type="text" id="mcsNote" placeholder="예: 클러치 고장 수리 중 · 생산계획 없음" maxlength="60"></div>
+        </div>
+        <button class="btn pri" style="width:100%" onclick="saveMcStatusUI()">상태 저장</button>
+        <p class="hint">설비 수리·계획 정지 등으로 호기를 세울 때 지정합니다(PIN 필요). 현황판 타일에 상태와 사유가 표시되고,
+          MES 대조에서 그 호기는 MES가 실제로 가동 중이 아닌 한 불일치로 울리지 않습니다.
+          내린 금형은 위 교체 화면에서 <strong>보관함(반납)</strong>으로 처리하세요. 가동을 재개하면 상태를 <strong>가동</strong>으로 바꿔 해제합니다. 지정·해제는 이력에 남습니다.</p>
+      </div>
     </div>
 
     <div id="mMove" style="max-width:520px;display:none">
@@ -519,7 +536,7 @@ body.capture main{padding:22px}
     <div class="bar">
       <input type="text" id="hq" placeholder="품번 · 금형번호 · 위치 검색">
       <select id="hy"><option value="">연도 전체</option></select>
-      <select id="hk"><option value="">구분 전체</option><option value="장착">장착</option><option value="반납">반납</option><option value="이동">이동</option><option value="실사보정">실사보정</option><option value="신규등록">신규등록</option><option value="정보수정">정보수정</option><option value="삭제">삭제</option></select>
+      <select id="hk"><option value="">구분 전체</option><option value="장착">장착</option><option value="반납">반납</option><option value="이동">이동</option><option value="실사보정">실사보정</option><option value="신규등록">신규등록</option><option value="정보수정">정보수정</option><option value="설비상태">설비상태</option><option value="삭제">삭제</option></select>
       <select id="h4"><option value="">4M 전체</option><option value="1">4M 변경 건만</option></select>
       <button class="btn" onclick="exportHist()">CSV 내려받기</button>
       <span style="margin-left:auto;color:var(--tx3);font-size:12px" id="hCnt"></span>
@@ -837,7 +854,7 @@ const store = {
 };
 
 /* ═══ 상태 ═══ */
-let S = { master:[], hist:[], audit:[], users:[], me:'', plan:{day:25,full:[6,12]}, cfg:{pin:''}, online:false, emptyMaster:false, stamp:'',
+let S = { master:[], hist:[], audit:[], users:[], mcs:{}, me:'', plan:{day:25,full:[6,12]}, cfg:{pin:''}, online:false, emptyMaster:false, stamp:'',
   auditors:{main:'',sub:'',conf:''}, connErr:'', connAt:'', reconn:false,
   fa:{cf:'',cfProxy:false,cfAt:''},
   au:{on:false, ym:'', cd:'', by:'', cf:'', cfAt:'', byProxy:false, cfProxy:false, res:{}} };
@@ -1006,7 +1023,7 @@ const K_HIST   = 'mold_loc_history_v1';
 const K_AUDIT  = 'mold_loc_audit_v1';
 const K_CONFIG = 'mold_loc_config_v1';
 const K_PINS   = 'user_pins';                 // 사내 공용 담당자·PIN 마스터
-const SB_KEYS  = [K_MASTER, K_HIST, K_AUDIT, K_CONFIG, K_PINS, 'mold_loc_ntfy_v1', 'mold_loc_rackmaster_v1'];
+const SB_KEYS  = [K_MASTER, K_HIST, K_AUDIT, K_CONFIG, K_PINS, 'mold_loc_ntfy_v1', 'mold_loc_rackmaster_v1', 'mold_loc_mcstatus_v1'];
 
 const HARDCODED_SB_URL = /*__CONN_URL__*/'https://omngtyewdaqpphnzeate.supabase.co';   // SmartFactory (2026-10-23 DB 통합)
 const HARDCODED_SB_KEY = /*__CONN_KEY__*/'sb_publishable_9j2YkkL-7ul1TrhH-NjVdQ_vWDG2-1D';
@@ -1088,8 +1105,9 @@ function loadLocal(){
   if(h?.length) S.hist=h;
   if(a) S.audit=a;
   if(c) applyLists(c);
-  const n=g(K_NTFY), r=g(K_RACK);
+  const n=g(K_NTFY), r=g(K_RACK), ms=g(K_MCS);
   if(n) S.ntfy={...NT_DEF, ...n};
+  if(ms && typeof ms==='object' && !Array.isArray(ms)) S.mcs=ms;
   if(Array.isArray(r) && r.length) S.racks=r;
 }
 
@@ -1105,6 +1123,7 @@ async function fetchAll(){
   if(o[K_AUDIT]  && !d[K_AUDIT])  S.audit  = o[K_AUDIT];
   if(o[K_NTFY]   && !d[K_NTFY])   S.ntfy   = {...NT_DEF, ...o[K_NTFY]};
   if(Array.isArray(o[K_RACK]) && !d[K_RACK]) S.racks = o[K_RACK];
+  if(o[K_MCS] && typeof o[K_MCS]==='object' && !Array.isArray(o[K_MCS]) && !d[K_MCS]) S.mcs = o[K_MCS];
   if(Array.isArray(o[K_PINS])) { S.users = o[K_PINS]; store.set('ml:'+K_PINS, JSON.stringify(S.users)); }
   S.emptyMaster = !S.master.length;
   // 미전송분 복구 업로드
@@ -1345,26 +1364,29 @@ function renderBoard(){
     const list=(byLoc[mc]||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
     const top=list[0];
     const mr=MESNOW.ok?MESNOW.byLoc[mc]:null;
-    // 정상으로 보는 경우 : 같은 금형이 걸려 있음 / 걸린 항목(금형·상태 표시)이 모두 MES 생산 종료 뒤 등록됨 / 비어 있고 그 금형이 MES 생산 종료 뒤 반납됨(설비 수리 등)
+    const hs=mcStatus(mc);                                   // 관리자가 지정한 설비 상태 (설비 수리 · 계획 정지 …)
+    // 정상으로 보는 경우 : 같은 금형이 걸려 있음 / 걸린 항목이 모두 MES 생산 종료 뒤 등록됨 / 비어 있고 그 금형이 MES 생산 종료 뒤 반납됨 / 설비 상태가 MES 생산 종료 뒤 지정됨
     const mSame=list.some(x=>mesK(x.mn)===mesK(mr?.mn));
-    const mOk=!mr || mSame || (list.length ? list.every(x=>movedAfter(x,mr)) : movedAfter(mesFind(mr),mr));
+    const mOk=!mr || mSame || (list.length ? list.every(x=>movedAfter(x,mr)) : movedAfter(mesFind(mr),mr))
+      || (hs && mesTime(mr) < new Date(hs.at).getTime());
     const mesNote=mr?`<div class="msnote" style="${mOk?'color:var(--tx3)':''}">MES ${mSame?'생산':'마지막 생산'} · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
-    if(!top) return `<button class="bay empty${mr&&!mOk?' ms':''}" data-loc="${esc(mc)}">
-      ${mr&&!mOk?'<span class="badge ms">MES 불일치</span>':''}
+    const holdNote=hs?`<div class="holdnote">${esc(hs.st)}${hs.note?' · '+esc(hs.note):''}<br><span style="color:var(--tx3)">${esc(fmt(hs.at))} · ${esc(hs.by||'')}</span></div>`:'';
+    if(!top) return `<button class="bay empty${hs?' hold':''}${mr&&!mOk?' ms':''}" data-loc="${esc(mc)}"${hs?' style="opacity:1"':''}>
+      ${mr&&!mOk?'<span class="badge ms">MES 불일치</span>':hs?`<span class="badge hold">${esc(hs.st)}</span>`:''}
       <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
-      <div class="vac">장착 금형 없음</div>${mesNote}</button>`;
+      <div class="vac">장착 금형 없음</div>${holdNote}${mesNote}</button>`;
     const g=top.fix?0:grade(top.at), d=days(top.at);
     const pct=top.fix?100:Math.min(100,Math.round((d??90)/90*100));
     const mrow=list.filter(x=>x.ms);
-    return `<button class="bay s${g}${mrow.length||!mOk?' ms':''}" data-loc="${esc(mc)}">
+    return `<button class="bay s${g}${hs?' hold':''}${mrow.length||!mOk?' ms':''}" data-loc="${esc(mc)}">
       <span class="stripe"></span>
       ${mrow.length?`<span class="badge ms">위치 불일치</span>`:!mOk?`<span class="badge ms">MES 불일치</span>`
-        :list.length>1?`<span class="badge">중복 ${list.length}</span>`:''}
+        :hs?`<span class="badge hold">${esc(hs.st)}</span>`:list.length>1?`<span class="badge">중복 ${list.length}</span>`:''}
       <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
       <div class="pn" title="${esc(top.pn)}">${esc(top.pn)}</div>
       <div class="mn num">${esc(top.mn||'—')}</div>
       ${mrow.length?`<div class="msnote">실사 확인 위치 · ${esc(mrow[0].msLoc)}${mrow[0].msRack?' '+esc(mrow[0].msRack):''}</div>`:''}
-      ${mOk&&!mr?'':mesNote}
+      ${holdNote}${mOk&&!mr?'':mesNote}
       <div class="foot"><span>${fmt(top.at)}</span>
         <span class="age num">${top.fix?'<span class="chip g" style="font-size:9.5px">고정</span>':(d===null?'—':d+'일')}</span></div>
       <div class="agebar"><i style="width:${pct}%"></i></div>
@@ -1429,7 +1451,7 @@ function renderHist(){
     return true;
   }).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
   $('#hCnt').textContent=`${rows.length}건`;
-  const kc={'장착':'g','반납':'n','이동':'w','실사보정':'b','신규등록':'g','정보수정':'n','삭제':'b'};
+  const kc={'장착':'g','반납':'n','이동':'w','실사보정':'b','신규등록':'g','정보수정':'n','설비상태':'w','삭제':'b'};
   $('#hBody').innerHTML = rows.length ? rows.slice(0,600).map((h,i)=>
     `<tr><td class="num" style="color:var(--tx3)">${rows.length-i}</td><td class="num">${fmt(h.at)}</td>
      <td><span class="chip ${kc[h.kind]||'n'}">${esc(h.kind||'이동')}</span></td>
@@ -1492,6 +1514,7 @@ function fillSwap(){
 }
 function showMounted(){
   const mc=$('#swMc').value, list=mountedOn(mc);
+  renderMcs(mc);
   const rackOpts=RACKS.map(r=>{ const ri=rackInfo(r), u=rackUsed(r);
     const tag = ri.cap>0 ? `  ${u}/${ri.cap}${u>=ri.cap?'  만재':''}` : '';
     return `<option value="${r}">${r}${tag}</option>`; }).join('');
@@ -2151,6 +2174,42 @@ async function fixAllStale(){
 }
 
 
+/* ══ 설비 상태 표시 (설비 수리 · 계획 정지 · 비가동) ══
+   호기 단위로 관리자가 지정한다. 금형 마스터와 별개 키로 저장해 모든 기기에 동기화되고,
+   타일 표시·MES 대조 판정에 쓰인다. 지정·해제는 이력에 '설비상태'로 남는다 */
+const K_MCS = 'mold_loc_mcstatus_v1';
+const MC_STATES = ['설비 수리','계획 정지','비가동','금형 교체 대기','기타'];
+function mcStatus(mc){ const s=S.mcs && S.mcs[mc]; return (s && s.st) ? s : null; }
+function renderMcs(mc){
+  const sel=$('#mcsSt'), now=$('#mcsNow'), note=$('#mcsNote');
+  if(!sel||!now) return;
+  if(!sel.options.length) sel.innerHTML=`<option value="">가동 (표시 없음)</option>`+MC_STATES.map(x=>`<option>${x}</option>`).join('');
+  const hs=mcStatus(mc);
+  sel.value=hs?hs.st:''; if(note) note.value=hs?.note||'';
+  now.innerHTML = hs
+    ? `<strong style="color:var(--warn)">${esc(mc)} · ${esc(hs.st)}</strong>${hs.note?' — '+esc(hs.note):''}
+       <span style="color:var(--tx3)"> · ${esc(fmt(hs.at))} ${esc(hs.by||'')}</span>`
+    : `<strong>${esc(mc)}</strong> · 가동 (설비 상태 표시 없음)`;
+}
+async function saveMcStatusUI(){
+  const mc=$('#swMc').value, st=$('#mcsSt').value, note=$('#mcsNote').value.trim();
+  if(!mc) return toast('호기를 선택하세요',true);
+  const prev=mcStatus(mc);
+  if(!st && !prev) return toast('이미 가동 상태입니다');
+  if(prev && prev.st===st && (prev.note||'')===note) return toast('변경된 내용이 없습니다');
+  if(st && mountedOn(mc).some(m=>!isMarker(m)) &&
+     !confirm(`${mc}에 금형이 장착 상태로 남아 있습니다.\n(${mountedOn(mc).filter(m=>!isMarker(m)).map(m=>m.pn).join(', ')})\n\n내린 금형이면 위 교체 화면에서 반납 처리하세요.\n상태만 먼저 저장할까요?`)) return;
+  if(!needPin()) return;
+  const now=new Date().toISOString();
+  S.mcs ||= {};
+  if(st) S.mcs[mc]={st, note, by:S.me, at:now}; else delete S.mcs[mc];
+  S.hist.push({pn:st?`[${st}]`:'[가동 복귀]', mn:'', loc:mc, rack:'', at:now, by:S.me, kind:'설비상태', m4:false,
+    note:(st?`${mc} 설비 상태 '${st}' 지정${note?' · '+note:''}`:`${mc} 설비 상태 해제 · 가동 복귀`)+(prev?` (이전 '${prev.st}')`:'')});
+  const ok=(await Promise.all([sbUpload(K_MCS, S.mcs), saveHist()])).every(Boolean);
+  toast(ok?(st?`${mc} — '${st}' 표시했습니다`:`${mc} — 설비 상태를 해제했습니다`):'저장 실패 — 연결을 확인하세요', !ok);
+  renderAll(); renderMcs(mc);
+}
+
 /* ══ MES 설비현황 대조 ══
    MES 연동 테이블 machine_status(호기별 현재 장착 금형) + qc_mes_machine_map(MES 설비코드 → 호기번호)를
    현황판과 같은 Supabase 프로젝트에서 읽어, 호기번호 기준으로 현황판 장착 금형과 비교한다 */
@@ -2192,6 +2251,7 @@ function mesCompare(mes){
       else { k='현황판 장착 없음'; pr='bad'; }
     }
     else if(on.some(m=>mnSame(m.mn,x.current_mold))){ k = on.length>1?'일치 (중복 장착)':'일치'; pr = on.length>1?'warn':'ok'; }
+    else if(mc && mcStatus(mc)){ const hs=mcStatus(mc); k = x.is_producing?`불일치 (설비 상태 '${hs.st}' 표시인데 MES 가동 중)`:`설비 상태 '${hs.st}' · MES 작업지시 미마감`; pr = x.is_producing?'bad':'low'; }
     else if(on.every(isMarker)){ k = x.is_producing?'불일치 (설비 정지 표시인데 MES 가동 중)':'설비 정지 표시 · MES 작업지시 미마감'; pr = x.is_producing?'bad':'low'; }
     else if(!x.is_producing && on.every(after)){ k='교체 등록됨 · MES 작업지시 미갱신'; pr='low'; }   // MES 마지막 타발 뒤 현황판에서 교체한 경우
     else { k='불일치'; pr='bad'; }
