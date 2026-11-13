@@ -410,6 +410,190 @@ body.capture main{padding:22px}
   .racks{grid-template-columns:1fr}
   .tabs{padding:0 10px}.tab{padding:10px}
 }
+/* ══════ v3 디자인 · Mold Location & Status Board (화면 전용, 인쇄 양식은 기존 유지) ══════ */
+@media screen{
+:root{
+  --bg:#0E1522; --panel:#18233A; --panel2:#1F2B44; --line:#2B3854;
+  --tx:#EEF2F8; --tx2:#B6C1D3; --tx3:#8592A8;
+  --amber:#E8B83A; --steel:#38B6E8; --ok:#34D27A; --warn:#E8B83A; --bad:#E5654F;
+  --cG:#34D27A; --cC:#38B6E8; --cY:#E8B83A; --cR:#E5654F; --cN:#8592A8;
+  --tile:#1A2539; --tileB:#2C3A56; --track:#2A3550;
+  --shadow:none;
+}
+body{font-size:15px;background:var(--bg)}
+header{background:var(--bg);border-bottom:none}
+.hbar{padding:18px 24px 6px}
+.brand{align-items:center;gap:16px}
+.brand h1{font-size:28px;font-weight:700;letter-spacing:-.02em;color:#fff}
+.brand span{font-size:13px;line-height:1.25;color:var(--tx2);border-left:1px solid #3A4766;padding-left:14px;max-width:150px;white-space:normal}
+.livebox{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.livebox .lbl{font-size:11.5px;color:var(--tx3)}
+.livebox .val{font-size:14px;color:var(--tx)}
+nav{background:var(--bg);border-bottom:1px solid #1E2940}
+.tab{font-size:14.5px;padding:12px 16px}
+.tab.on{color:#fff;border-bottom-color:var(--cC)}
+.tab .cnt{font-size:11px;background:var(--panel2);color:var(--tx2)}
+.tab .cnt.alarm{background:var(--cR);color:#fff}
+main{max-width:1680px;padding:18px 24px}
+
+/* 요약 카드 대신 상단 상태 칩 사용 */
+#kpis{display:none!important}
+
+/* 도구줄 : 검색 · 구역 · 상태 칩 */
+.btool{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:4px 0 16px}
+.btool input{max-width:230px;background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:10px!important;padding:10px 14px!important;font-size:15px}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;gap:2px}
+.seg button{padding:8px 18px;font-size:15px;color:var(--tx);border-radius:8px;font-weight:500}
+.seg button.on{background:#D9DEE6;color:#111827;font-weight:600}
+.bchips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.bchip{min-width:76px;padding:5px 12px 6px;border-radius:10px;text-align:center;border:1.5px solid var(--cN);background:rgba(0,0,0,.15);line-height:1.15}
+.bchip small{display:block;font-size:12px;color:var(--tx)}
+.bchip b{display:block;font-size:22px;font-weight:600}
+.bchip.t{background:#D9DEE6;border-color:#D9DEE6}.bchip.t small,.bchip.t b{color:#111827}
+.bchip.g{border-color:var(--cG)}.bchip.g b{color:var(--cG)}
+.bchip.c{border-color:var(--cC)}.bchip.c b{color:var(--cC)}
+.bchip.y{border-color:var(--cY)}.bchip.y b{color:var(--cY)}
+.bchip.r{border-color:var(--cR)}.bchip.r b{color:var(--cR)}
+.btool .fcnt{font-size:12.5px;color:var(--tx3)}
+
+/* 판넬 래퍼 */
+.secthead{margin:18px 0 10px}
+.secthead h2{font-size:14px;color:var(--tx2);letter-spacing:.06em}
+.secthead .rule{background:#24304A}
+.secthead .note{font-size:12.5px}
+
+/* 타일 */
+.bays{grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;background:rgba(255,255,255,.015);border:1px solid #1F2A42;border-radius:14px;padding:12px}
+.bay{background:var(--tile);border:1px solid var(--tileB);border-radius:11px;padding:13px 14px 12px;transition:border-color .12s,background .12s;overflow:visible}
+.bay:hover{transform:none;border-color:#4A5B80;background:#1D2940}
+.bay.sel{border:1.5px solid #E6EBF3;background:#202D46}
+.bay .stripe,.bay .agebar,.bay .badge{display:none}
+.bay .t1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.bay .t1 b{font-size:19px;font-weight:700;color:#fff}
+.bay .t1 em{font-style:normal;font-size:17px;font-weight:700;color:#fff;white-space:nowrap}
+.bay .t2{font-size:16px;color:var(--tx);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bay .t2.mute{color:var(--tx3)}
+.bay .t1,.bay .t2,.bay .t3,.bay .t4,.bay .note2{text-align:left}
+.hbar,.tabs{max-width:1680px}
+.bay .t3{display:flex;justify-content:space-between;font-size:12.5px;color:var(--tx2);margin-top:10px}
+.bay .gbar{height:6px;border-radius:3px;background:var(--track);margin:5px 0 9px;overflow:hidden}
+.bay .gbar i{display:block;height:100%;border-radius:3px}
+.bay .t4{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:24px}
+.bay .t4 span{font-size:12px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{flex:none;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:999px;border:1.5px solid currentColor;background:rgba(0,0,0,.18)}
+.pill.g{color:var(--cG)}.pill.c{color:var(--cC)}.pill.y{color:var(--cY)}.pill.r{color:var(--cR)}.pill.n{color:var(--cN)}
+.gbar i.g{background:var(--cG)}.gbar i.c{background:var(--cC)}.gbar i.y{background:var(--cY)}.gbar i.r{background:var(--cR)}.gbar i.n{background:var(--cN)}
+.bay .note2{font-size:12px;margin-top:6px;line-height:1.45}
+.bay.f-hide,.rack.f-hide{display:none}
+.bay.empty{opacity:1}
+
+/* 보관장 카드 */
+.racks{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;background:rgba(255,255,255,.015);border:1px solid #1F2A42;border-radius:14px;padding:12px}
+.rack{background:var(--tile);border:1px solid var(--tileB);border-radius:11px;padding:12px 14px}
+.rack .rc{font-size:18px;color:#fff}
+.rack .rn{font-size:12.5px}
+.rack li{font-size:13px;color:var(--tx2)}
+.rack li::before{background:var(--cC)}
+.rack.ms{border-color:var(--cR)}
+
+/* 공통 컨트롤 */
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:9px;font-size:14px;color:var(--tx)}
+.btn:hover{background:#28365A}
+.btn.pri{background:var(--cC);border-color:var(--cC);color:#071520}
+.btn.pri:hover{background:#5CC6F0}
+input[type=text],input[type=password],input[type=month],input[type=number],input[type=date],input[type=search],input:not([type]),select,textarea{background:#121B2C;border:1px solid var(--line);border-radius:9px;color:var(--tx)}
+input:focus,select:focus,textarea:focus{border-color:var(--cC)}
+.kpi,.card,.modal,.tw{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.kpi::before{display:none}
+table{font-size:13.5px}
+th{font-size:12.5px;background:var(--panel2);color:var(--tx2)}
+td{border-bottom:1px solid #243049}
+.chip{font-size:11.5px;border-radius:999px;padding:2px 9px;border:1.5px solid currentColor;background:rgba(0,0,0,.18)}
+.chip.g{color:var(--cG)}.chip.w{color:var(--cY)}.chip.b{color:var(--cR)}.chip.n{color:var(--cC)}
+
+/* 알림 */
+.al{border-radius:12px;padding:12px 16px}
+.al .t1{font-size:14px}.al .t2{font-size:12.5px}
+.al.hi{background:rgba(229,101,79,.09);border-color:rgba(229,101,79,.55);color:#FF9F8E}.al.hi .ico{background:var(--cR)}
+.al.mid{background:rgba(232,184,58,.08);border-color:rgba(232,184,58,.5);color:#F2CF70}.al.mid .ico{background:var(--cY);color:#231a02}
+.al.low{background:rgba(56,182,232,.08);border-color:rgba(56,182,232,.45);color:#8FD6F5}.al.low .ico{background:var(--cC);color:#04131c}
+.al.hi::after,.alarm::after{animation:none;display:none}
+.aubar{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--cC);border-radius:12px}
+.aubar h3{color:var(--cC);font-size:15px}
+.aubar.st-done{background:var(--panel);border-color:var(--line);border-left-color:var(--cG)}
+.aubar.st-late{background:rgba(229,101,79,.08);border-color:rgba(229,101,79,.45);border-left-color:var(--cR)}
+.aubar.st-wait{background:var(--panel)}
+.aubar .stx{font-size:13px}
+.mode.on{color:var(--cC);box-shadow:none}
+
+/* 상세 패널 */
+#dpanel{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:100%;z-index:150;background:#1B2740;border-left:1px solid #3A4A6C;transform:translateX(105%);transition:transform .22s ease;display:flex;flex-direction:column}
+#dpanel.on{transform:none}
+#dpanel .dh{display:flex;align-items:center;gap:10px;padding:20px 20px 12px}
+#dpanel .dh .dno{font-size:24px;font-weight:700;color:#fff}
+#dpanel .dh .dmc{font-size:14px;color:var(--tx2)}
+#dpanel .dh .x{margin-left:auto;width:34px;height:34px;font-size:24px;color:var(--tx2)}
+#dpanel .db{flex:1;overflow:auto;padding:4px 16px 12px}
+#dpanel .dsec{background:#22304C;border-radius:12px;padding:14px 16px;margin-bottom:12px}
+#dpanel .dlab{font-size:14px;color:var(--tx);margin-bottom:10px;font-weight:600}
+#dpanel .drow{display:flex;gap:14px;font-size:14.5px;padding:3px 0}
+#dpanel .drow span:first-child{color:var(--tx2);min-width:64px;flex:none}
+#dpanel .dmold{padding:8px 0;border-top:1px solid #2E3D5E}
+#dpanel .dmold:first-of-type{border-top:none;padding-top:0}
+#dpanel .dmold b{display:block;font-size:16px;color:#fff;font-weight:600}
+#dpanel .dmold small{font-size:12.5px;color:var(--tx2)}
+#dpanel .dh2{font-size:13.5px;line-height:1.55;padding:7px 0;display:flex;gap:12px}
+#dpanel .dh2 .t{color:var(--tx3);min-width:86px;flex:none;font-size:12.5px}
+#dpanel .df{padding:12px 16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#dpanel .df button{min-height:44px;border-radius:8px;font-size:14px;font-weight:600;border:1.5px solid;background:rgba(0,0,0,.15)}
+#dpanel .df .bg{color:var(--cG);border-color:var(--cG)}
+#dpanel .df .bc{color:var(--cC);border-color:var(--cC)}
+#dpanel .df .by{color:var(--cY);border-color:var(--cY)}
+#dpanel .df .bn{color:var(--tx);border-color:#4A5B80}
+#dmask{position:fixed;inset:0;z-index:140;background:rgba(5,9,16,.55);display:none}
+#dmask.on{display:block}
+
+/* 넓은 화면 : 오른쪽 패널 고정 */
+@media(min-width:1280px){
+  body.dock main{padding-right:424px}
+  body.dock #dpanel{top:150px;right:24px;bottom:20px;width:380px;border:1px solid #3A4A6C;border-radius:16px}
+  body.dock #dmask{display:none!important}
+}
+
+@media(max-width:820px){
+  .hbar{padding:14px 14px 4px}
+  .brand h1{font-size:22px}
+  .brand span{display:block;font-size:11.5px;padding-left:10px}
+  header{position:static}
+  nav{top:0}
+  .aubar{top:48px}
+  .stamp{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .livebox{min-width:0;padding:7px 10px}
+  .livebox .lbl{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .livebox .val{font-size:13px}
+  #meBox{white-space:nowrap;overflow:hidden}
+  main{padding:12px}
+  .al{flex-wrap:wrap;align-items:flex-start;gap:10px}
+  .al .tx{flex:1 1 calc(100% - 40px)}
+  .al .btn{flex:1 1 auto;min-height:42px}
+  .btool{gap:10px}
+  .btool input{max-width:none;flex:1 1 100%}
+  .seg{width:100%}.seg button{flex:1;padding:9px 4px;font-size:14.5px}
+  .bchips{margin-left:0;width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+  .bchip{min-width:0;padding:5px 2px}
+  .bchip small{font-size:11px}.bchip b{font-size:19px}
+  .bays,.racks{padding:8px;gap:10px}
+  .bays{grid-template-columns:1fr}
+  .racks{grid-template-columns:1fr 1fr}
+  .bay .t1 b{font-size:21px}.bay .t1 em{font-size:17px}.bay .t2{font-size:17px}
+  .bay .t3,.bay .t4 span{font-size:13px}.pill{font-size:13px}
+  #dpanel{top:auto;left:0;right:0;width:auto;height:82vh;border-left:none;border-top:1px solid #3A4A6C;border-radius:18px 18px 0 0;transform:translateY(105%)}
+  #dpanel.on{transform:none}
+  #dpanel .dh{position:relative;padding-top:24px}
+  #dpanel .dh::before{content:'';position:absolute;top:8px;left:50%;width:42px;height:4px;margin-left:-21px;border-radius:2px;background:#4A5B80}
+  #dpanel .drow{font-size:15px}#dpanel .dmold b{font-size:17px}#dpanel .dh2{font-size:14px}
+}
+}
 </style>
 </head>
 <body>
@@ -418,7 +602,7 @@ body.capture main{padding:22px}
   <div class="hbar">
     <div class="brand">
       <h1>금형 위치 현황판</h1>
-      <span>㈜태진다이텍 · 품질관리팀</span>
+      <span>Mold Location<br>&amp; Status Board</span>
     </div>
     <div class="stamp">
       <div class="livebox">
@@ -448,10 +632,16 @@ body.capture main{padding:22px}
     <div id="auBar"></div>
     <div class="alarms" id="alarmBox"></div>
     <div class="strip" id="kpis"></div>
-    <div class="secthead"><h2>프레스 라인</h2><div class="rule"></div><span class="note">타일을 누르면 금형을 이동 등록합니다</span></div>
+    <div class="btool noprint" id="btool">
+      <input type="text" id="bq" placeholder="품번 · 금형번호 · 호기 검색">
+      <div class="seg" id="bseg"><button data-f="all" class="on">전체</button><button data-f="press">프레스 라인</button><button data-f="store">보관장</button><button data-f="alert">이상</button></div>
+      <span class="fcnt" id="bcnt"></span>
+      <div class="bchips" id="bchips"></div>
+    </div>
+    <div class="secthead" id="pressHead"><h2>프레스 라인</h2><div class="rule"></div><span class="note">타일을 누르면 상세 정보가 열립니다</span></div>
     <div class="bays" id="bays"></div>
     <div id="warnBox"></div>
-    <div class="secthead"><h2>금형 보관장</h2><div class="rule"></div><span class="note" id="rackNote"></span></div>
+    <div class="secthead" id="rackHead"><h2>금형 보관장</h2><div class="rule"></div><span class="note" id="rackNote"></span></div>
     <div class="racks" id="racks"></div>
   </section>
 
@@ -824,6 +1014,12 @@ body.capture main{padding:22px}
     </div>
   </section>
 </main>
+<div id="dmask" onclick="closeDetail()"></div>
+<aside id="dpanel" aria-label="설비 상세">
+  <div class="dh"><span class="dno num" id="dNo"></span><span class="dmc" id="dMc"></span><button class="x" onclick="closeDetail()" aria-label="닫기">×</button></div>
+  <div class="db" id="dBody"></div>
+  <div class="df"><button class="bg" id="dSwap">금형 교체 등록</button><button class="bc" id="dMove">단순 이동</button><button class="by" id="dSt">설비 상태 지정</button><button class="bc" id="dHist">이력 보기</button><button class="bn" onclick="closeDetail()" style="grid-column:1/-1">닫기</button></div>
+</aside>
 
 <!-- 이동 모달 -->
 <div class="mask" id="mask" onclick="if(event.target===this)closeM()">
@@ -1370,30 +1566,38 @@ function renderBoard(){
     const mSame=list.some(x=>mesK(x.mn)===mesK(mr?.mn));
     const mOk=!mr || mSame || (list.length ? list.every(x=>movedAfter(x,mr)) : movedAfter(mesFind(mr),mr))
       || (hs && mesTime(mr) < new Date(hs.at).getTime());
-    const mesNote=mr?`<div class="msnote" style="${mOk?'color:var(--tx3)':''}">MES ${mSame?'생산':'마지막 생산'} · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
+    const mesNote=mr?`<div class="note2" style="color:${mOk?'var(--tx3)':'var(--cR)'}">MES ${mSame?'생산':'마지막 생산'} · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
     const holdNote=hs?`<div class="holdnote">${esc(hs.st)}${hs.note?' · '+esc(hs.note):''}<br><span style="color:var(--tx3)">${esc(fmt(hs.at))} · ${esc(hs.by||'')}</span></div>`:'';
-    if(!top) return `<button class="bay empty${hs?' hold':''}${mr&&!mOk?' ms':''}" data-loc="${esc(mc)}"${hs?' style="opacity:1"':''}>
-      ${mr&&!mOk?'<span class="badge ms">MES 불일치</span>':hs?`<span class="badge hold">${esc(hs.st)}</span>`:''}
-      <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
-      <div class="vac">장착 금형 없음</div>${holdNote}${mesNote}</button>`;
+    const mcNm=esc(nm.join(' '));
+    if(!top){
+      const bad=mr&&!mOk;
+      const [pc,pt]=bad?['r','MES 불일치']:hs?['y',esc(hs.st)]:['n','대기'];
+      return `<button class="bay empty${hs?' hold':''}${bad?' ms':''}" data-loc="${esc(mc)}">
+      <div class="t1"><b class="num">${no}호기</b><em>${mcNm}</em></div>
+      <div class="t2 mute">장착 금형 없음</div>
+      <div class="t3"><span>장착 경과</span><span class="num">— / ${AGE_BAD}일</span></div>
+      <div class="gbar"><i class="n" style="width:0"></i></div>
+      <div class="t4"><span>${hs&&hs.note?esc(hs.note):''}</span><span class="pill ${pc}">${pt}</span></div>
+      ${hs?`<div class="note2" style="color:var(--cY)">${esc(fmt(hs.at))} · ${esc(hs.by||'')}</div>`:''}${mesNote}</button>`;
+    }
     const g=top.fix?0:grade(top.at), d=days(top.at);
-    const pct=top.fix?100:Math.min(100,Math.round((d??90)/90*100));
+    const pct=top.fix?100:Math.min(100,Math.round((d??AGE_BAD)/AGE_BAD*100));
     const mrow=list.filter(x=>x.ms);
+    const [pc,pt]= mrow.length?['r','위치 불일치'] : !mOk?['r','MES 불일치'] : hs?['y',esc(hs.st)]
+      : list.length>1?['r','중복 '+list.length] : g===2?['r','장기 장착'] : g===1?['y','점검 필요'] : ['g','가동'];
+    const bc = top.fix?'c':(g===2?'r':g===1?'y':'g');
     return `<button class="bay s${g}${hs?' hold':''}${mrow.length||!mOk?' ms':''}" data-loc="${esc(mc)}">
-      <span class="stripe"></span>
-      ${mrow.length?`<span class="badge ms">위치 불일치</span>`:!mOk?`<span class="badge ms">MES 불일치</span>`
-        :hs?`<span class="badge hold">${esc(hs.st)}</span>`:list.length>1?`<span class="badge">중복 ${list.length}</span>`:''}
-      <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
-      <div class="pn" title="${esc(top.pn)}">${esc(top.pn)}</div>
-      <div class="mn num">${esc(top.mn||'—')}</div>
-      ${mrow.length?`<div class="msnote">실사 확인 위치 · ${esc(mrow[0].msLoc)}${mrow[0].msRack?' '+esc(mrow[0].msRack):''}</div>`:''}
-      ${holdNote}${mOk&&!mr?'':mesNote}
-      <div class="foot"><span>${fmt(top.at)}</span>
-        <span class="age num">${top.fix?'<span class="chip g" style="font-size:9.5px">고정</span>':(d===null?'—':d+'일')}</span></div>
-      <div class="agebar"><i style="width:${pct}%"></i></div>
+      <div class="t1"><b class="num">${no}호기</b><em>${mcNm}</em></div>
+      <div class="t2" title="${esc(top.pn)}">${esc(top.pn)}</div>
+      <div class="t3"><span>장착 경과</span><span class="num">${top.fix?'고정 금형':(d===null?'—':d)+' / '+AGE_BAD+'일'}</span></div>
+      <div class="gbar"><i class="${bc}" style="width:${pct}%"></i></div>
+      <div class="t4"><span class="num">${esc(top.mn||'—')}</span><span class="pill ${pc}">${pt}</span></div>
+      ${mrow.length?`<div class="note2" style="color:var(--cR)">실사 확인 위치 · ${esc(mrow[0].msLoc)}${mrow[0].msRack?' '+esc(mrow[0].msRack):''}</div>`:''}
+      ${hs?`<div class="note2" style="color:var(--cY)">${esc(hs.st)}${hs.note?' · '+esc(hs.note):''}</div>`:''}
+      ${mOk&&!mr?'':mesNote}
     </button>`;
   }).join('');
-  if(!S.au.on) $$('.bay').forEach(b=>b.onclick=()=>openSwap(b.dataset.loc));
+  if(!S.au.on) $$('.bay').forEach(b=>b.onclick=()=>openDetail(b.dataset.loc));
 
   const byRack={}; S.master.filter(m=>m.loc===STORE).forEach(m=>{ (byRack[m.rack||'미지정'] ||= []).push(m); });
   const keys=[...RACKS,'미지정'].filter(k=>byRack[k]);
@@ -1413,6 +1617,7 @@ function renderBoard(){
     const e=$('#tc-'+k); if(!e) return;
     e.textContent = k==='search'?S.master.length : k==='hist'?S.hist.length : k==='audit'?(S.audit.length||'') : ''; });
   renderAlarms(miss, dups);
+  applyBoardFilter();
 }
 
 /* ═══ 렌더: 조회 ═══ */
@@ -3186,6 +3391,105 @@ function tick(){
   window.addEventListener('beforeprint',()=>{ const e=$('#phStamp'); if(e) e.textContent=stampText(); });
   tick(); setInterval(tick,1000);
 })();
+
+/* ═══ v3 현황판 : 검색 · 구역 필터 · 상태 칩 · 상세 패널 ═══ */
+var BF=BF||{f:'all',q:''};
+var DSEL=DSEL||'', DOFF=false;
+function wide(){ return window.innerWidth>=1280; }
+function boardOn(){ const p=document.getElementById('p-board'); return !!(p && p.classList.contains('on')); }
+function renderChips(){
+  const el=$('#bchips'); if(!el) return;
+  const act=S.master.filter(m=>!m.inactive);
+  const onP=S.master.filter(m=>m.loc && m.loc!==STORE);
+  const inS=S.master.filter(m=>m.loc===STORE);
+  const hold=MACHINES.filter(mc=>mcStatus(mc)).length;
+  const bad=$$('#bays .bay').filter(b=>b.querySelector('.pill.r')).length;
+  el.innerHTML=`<div class="bchip t"><small>전체</small><b class="num">${act.length}</b></div>
+    <div class="bchip g"><small>가동</small><b class="num">${onP.length}</b></div>
+    <div class="bchip c"><small>보관</small><b class="num">${inS.length}</b></div>
+    <div class="bchip y"><small>정지·수리</small><b class="num">${hold}</b></div>
+    <div class="bchip r"><small>이상</small><b class="num">${bad}</b></div>`;
+}
+function applyBoardFilter(){
+  if(!BF) BF={f:'all',q:''};
+  const q=BF.q.trim().toLowerCase(), f=S.au.on?'all':BF.f;
+  const pressOn=f!=='store', storeOn=f==='all'||f==='store';
+  let nb=0,nr=0;
+  $$('#bays .bay').forEach(b=>{
+    let ok=pressOn && (!q || b.textContent.toLowerCase().includes(q));
+    if(ok && f==='alert') ok=b.matches('.ms,.s2,.hold') || !!b.querySelector('.pill.r,.pill.y');
+    b.classList.toggle('f-hide',!ok); if(ok) nb++; });
+  $$('#racks .rack').forEach(r=>{
+    const ok=storeOn && (!q || r.textContent.toLowerCase().includes(q));
+    r.classList.toggle('f-hide',!ok); if(ok) nr++; });
+  const sh=(id,on)=>{ const e=$(id); if(e) e.style.display=on?'':'none'; };
+  sh('#pressHead',pressOn); sh('#bays',pressOn); sh('#rackHead',storeOn); sh('#racks',storeOn);
+  const c=$('#bcnt'); if(c) c.textContent=(q||f!=='all')?`프레스 ${nb} · 보관 구역 ${nr}`:'';
+  const bt=$('#btool'); if(bt) bt.style.display=S.au.on?'none':'';
+  renderChips();
+  if(S.au.on){ closeDetail(true); return; }
+  if(wide() && boardOn() && !DOFF){
+    const first=$$('#bays .bay').find(b=>!b.classList.contains('empty'));
+    const loc = DSEL && MACHINES.includes(DSEL) ? DSEL : (first?first.dataset.loc:MACHINES[0]);
+    if(loc) openDetail(loc);
+  } else if($('#dpanel').classList.contains('on') && DSEL){
+    $$('.bay').forEach(b=>b.classList.toggle('sel',b.dataset.loc===DSEL));
+  }
+}
+function initBoardTool(){
+  const i=$('#bq'); if(!i || i._init) return; i._init=1;
+  let t; i.oninput=()=>{ clearTimeout(t); t=setTimeout(()=>{ BF.q=i.value; applyBoardFilter(); },200); };
+  $$('#bseg button').forEach(b=>b.onclick=()=>{ BF.f=b.dataset.f;
+    $$('#bseg button').forEach(x=>x.classList.toggle('on',x===b)); applyBoardFilter(); });
+  let rt; window.addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>{
+    if(!wide()) document.body.classList.remove('dock'); applyBoardFilter(); },200); });
+}
+function openDetail(mc){
+  DSEL=mc; DOFF=false;
+  const [no,...nm]=mc.split(' ');
+  const list=S.master.filter(m=>m.loc===mc).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  const hs=mcStatus(mc), mr=MESNOW.ok?MESNOW.byLoc[mc]:null;
+  const hist=S.hist.filter(h=>h.loc===mc).sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,6);
+  $('#dNo').textContent=no+'호기'; $('#dMc').textContent=nm.join(' ');
+  const st=list.some(m=>m.ms)?'<span class="chip b">위치 불일치</span>':list.length>1?`<span class="chip b">중복 ${list.length}</span>`:hs?`<span class="chip w">${esc(hs.st)}</span>`:list.length?'<span class="chip g">가동</span>':'<span class="chip n">대기</span>';
+  const top=list[0];
+  $('#dBody').innerHTML=`
+    <div class="dsec">
+      <div class="drow"><span>상태</span><span>${st}</span></div>
+      <div class="drow"><span>품번</span><span>${top?esc(top.pn):'—'}</span></div>
+      <div class="drow"><span>금형번호</span><span class="num">${top?esc(top.mn||'—'):'—'}</span></div>
+      <div class="drow"><span>장착일</span><span class="num">${top?esc(fmt(top.at)):'—'}</span></div>
+      <div class="drow"><span>경과</span><span class="num">${top?(top.fix?'고정 금형':(days(top.at)??'—')+'일'):'—'}</span></div>
+      ${hs?`<div class="drow"><span>사유</span><span>${esc(hs.note||'—')}</span></div>`:''}
+      ${mr?`<div class="drow"><span>MES</span><span>${esc(mr.pn||'')} ${esc(mr.mn)}<br><small style="color:var(--tx3)">${esc(mr.ymd)} ${esc(mr.end)}</small></span></div>`:''}
+    </div>
+    ${list.length>1||list.some(m=>m.ms)?`<div class="dsec"><div class="dlab">장착 금형 ${list.length>1?`<span style="color:var(--cR)">· 중복 ${list.length}</span>`:''}</div>
+      ${list.map(m=>`<div class="dmold"><b>${esc(m.pn)}</b><small class="num">${esc(m.mn||'—')} · ${esc(fmt(m.at))}</small>
+        ${m.ms?`<div style="font-size:12.5px;color:var(--cR);margin-top:3px">실사 확인 위치 · ${esc(m.msLoc)} ${esc(m.msRack||'')}</div>`:''}</div>`).join('')}</div>`:''}
+    <div class="dsec"><div class="dlab">최근 이력</div>
+      ${hist.length?hist.map(h=>`<div class="dh2"><span class="t num">${esc(fmt(h.at).slice(0,10))}</span><span><span style="color:var(--tx2)">${esc(h.kind||'이동')}</span><br>${esc(h.pn)} ${esc(h.mn||'')}${h.by?` <span style="color:var(--tx3)">· ${esc(h.by)}</span>`:''}</span></div>`).join('')
+        :'<div style="font-size:13.5px;color:var(--tx3)">기록 없음</div>'}
+    </div>`;
+  $('#dSwap').onclick=()=>{ closeDetail(true); openSwap(mc); };
+  $('#dMove').onclick=()=>{ closeDetail(true); goTab('move'); setMode('move');
+    if(top){ const k=key(top), sel=$('#mvMold'); const o=[...sel.options].find(x=>x.value===k); if(o){ sel.value=k; sel.dispatchEvent(new Event('change')); } }
+    window.scrollTo({top:0,behavior:'smooth'}); };
+  $('#dSt').onclick=()=>{ closeDetail(true); openSwap(mc); setTimeout(()=>{ const c=$('#mcsCard'); if(c) c.scrollIntoView({behavior:'smooth'}); },150); };
+  $('#dHist').onclick=()=>{ closeDetail(true); goTab('hist'); const q=$('#hq'); if(q){ q.value=mc; renderHist(); } };
+  $$('.bay').forEach(b=>b.classList.toggle('sel',b.dataset.loc===mc));
+  $('#dpanel').classList.add('on');
+  if(wide()){ document.body.classList.add('dock'); $('#dmask').classList.remove('on'); }
+  else $('#dmask').classList.add('on');
+}
+function closeDetail(keep){
+  $('#dpanel').classList.remove('on'); $('#dmask').classList.remove('on');
+  document.body.classList.remove('dock');
+  if(!keep){ DSEL=''; DOFF=true; $$('.bay.sel').forEach(b=>b.classList.remove('sel')); }
+}
+(function(){ const g=goTab; goTab=function(k){ g(k); if(k!=='board') closeDetail(true); else setTimeout(applyBoardFilter,0); }; })();
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !wide()) closeDetail(); });
+document.addEventListener('DOMContentLoaded',initBoardTool);
+if(document.readyState!=='loading') initBoardTool();
 </script>
 </body>
 </html>
