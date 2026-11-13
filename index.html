@@ -139,7 +139,7 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:9px 11px;font-size:11.5px;letter-spacing:0;color:var(--tx2);font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
 td{padding:8px 11px;border-bottom:1px solid rgba(46,52,64,.5)}
 tbody tr:hover{background:rgba(255,255,255,.02)}
-.chip{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:700}
+.chip{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:700;white-space:nowrap}
 .chip.g{background:rgba(63,178,107,.14);color:var(--ok)}
 .chip.w{background:rgba(217,154,43,.14);color:var(--warn)}
 .chip.b{background:rgba(224,82,79,.14);color:var(--bad)}
@@ -2512,7 +2512,7 @@ function mesCompare(mes){
   MACHINES.forEach(mc=>{ const h=hoOf(mc); if(h==null||mesHos.has(h)) return;
     const on=S.master.filter(m=>m.loc===mc);
     if(on.length) rows.push({ho:h, mc, mesMold:'', mesItem:'', mesName:'', board:on, k:'MES 미연동 호기', pr:'low', last:null, producing:false}); });
-  const ord={bad:0,warn:1,low:2,ok:3};
+  const ord={bad:0,warn:1,ok:2,low:3};   // 불일치 → 주의 → 일치 → 참고(MES 잔존 작업지시 등) 순
   rows.sort((a,b)=>ord[a.pr]-ord[b.pr] || a.ho-b.ho);
   return rows;
 }
@@ -2543,7 +2543,7 @@ function renderMes(){
   info.textContent=`대조 ${fmt(st.at)} · MES 갱신 ${fmt(st.mesAt)} · 가동 호기 ${st.rows.filter(r=>r.mesMold).length}`;
   const cls={bad:'b',warn:'w',low:'n',ok:'g'};
   body.innerHTML = st.rows.length ? st.rows.map(r=>`
-    <tr${r.pr==='bad'?' style="background:rgba(224,82,79,.06)"':''}>
+    <tr${r.pr==='bad'?' style="background:rgba(224,82,79,.06)"':r.pr==='low'?' style="opacity:.6"':''}>
       <td>${esc(r.mc)}</td>
       <td>${r.mesMold?`<span class="num">${esc(r.mesMold)}</span>${r.mesItem?` <span style="color:var(--tx3)">${esc(r.mesItem)}</span>`:''}${r.producing?' <span class="chip g">가동</span>':''}`:'<span style="color:var(--tx3)">—</span>'}</td>
       <td>${r.board.length? r.board.map(b=>`<span class="num">${esc(b.mn||'—')}</span> <span style="color:var(--tx3)">${esc(b.pn)}</span>`).join('<br>') : '<span style="color:var(--tx3)">장착 없음</span>'}</td>
