@@ -1153,6 +1153,8 @@ function startPoll(){
    · 탈착 금형의 보관 위치(랙)는 MES가 알 수 없으므로 자동 반납하지 않고 교체 화면에서 정리한다
    ═══════════════════════════════════════════════════════════════════════════ */
 const MES_DAYS = 1, MES_POLL = 300000;
+/* MES 금형코드 비교용 정규화 : 앞뒤 기호 제거 (MES 에 '25BKA202A_' 처럼 밑줄이 붙은 코드가 있음 · '21TJA201A_2' 같은 가운데 기호는 유지) */
+const mesK = s => normK(s).replace(/^[^0-9A-Z]+|[^0-9A-Z]+$/g,'');
 let MESNOW = { ok:false, err:'', at:null, byLoc:{} };
 function kstYmd(off){ return new Date(Date.now()+9*3600e3+(off||0)*864e5).toISOString().slice(0,10); }
 function mcOf(name){ const n=parseInt(name,10); return MACHINES.find(x=>parseInt(x,10)===n) || name; }
@@ -1172,7 +1174,7 @@ async function mesLoad(){
     rows.forEach(r=>{
       const loc=mc[r.machine_code]; if(!loc || !MACHINES.includes(loc) || !(Number(r.shot_qty)>0)) return;
       const t=`${r.ymd} ${r.end_time||r.start_time||''}`;
-      const k=normK(r.mold_code);
+      const k=mesK(r.mold_code);
       if(!lastByMold[k] || t>lastByMold[k].t) lastByMold[k]={t, loc, ymd:r.ymd, mn:r.mold_code, pn:r.item_code, st:r.start_time||'', end:r.end_time||''};
     });
     const by={};
@@ -1185,7 +1187,7 @@ async function mesLoad(){
 function mesTime(r){ const d=new Date(`${r.ymd}T${(r.end||r.st||'23:59').slice(0,5)}:00+09:00`); return isNaN(d)?0:d.getTime(); }
 const movedAfter=(m,r)=>!!(m&&m.at&&new Date(m.at).getTime()>mesTime(r));
 function mesFind(r){
-  const ms=S.master.filter(m=>normK(m.mn)===normK(r.mn));
+  const ms=S.master.filter(m=>mesK(m.mn)===mesK(r.mn));
   return ms.find(m=>normK(m.pn)===normK(r.pn)) || ms[0] || null;
 }
 /* wrong : MES 장착 금형의 현황판 위치가 다름 · unreg : 현황판 미등록 · stale : 그 호기에 남아 있는 다른 금형(탈착 누락 의심) */
@@ -1194,7 +1196,7 @@ function mesDiff(){
   if(!MESNOW.ok) return out;
   Object.entries(MESNOW.byLoc).forEach(([loc,r])=>{
     const m=mesFind(r);
-    const others=S.master.filter(x=>x.loc===loc && normK(x.mn)!==normK(r.mn) && !x.fix);
+    const others=S.master.filter(x=>x.loc===loc && mesK(x.mn)!==mesK(r.mn) && !x.fix);
     if(!m){ out.unreg.push({loc,r,cand:others}); return; }   // 그 호기의 기존 금형 = 금형번호 표기 차이·미입력 후보
     if(m.loc!==loc){ if(movedAfter(m,r)) out.ok++; else out.wrong.push({loc,r,m}); }   // 생산 뒤 현황판에서 옮긴 금형은 그대로 둔다
     else out.ok++;
@@ -1343,7 +1345,7 @@ function renderBoard(){
     const list=(byLoc[mc]||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
     const top=list[0];
     const mr=MESNOW.ok?MESNOW.byLoc[mc]:null;
-    const mOk=!mr || list.some(x=>normK(x.mn)===normK(mr.mn));
+    const mOk=!mr || list.some(x=>mesK(x.mn)===mesK(mr.mn));
     const mesNote=mr?`<div class="msnote" style="${mOk?'color:var(--tx3)':''}">MES 생산 · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
     if(!top) return `<button class="bay empty${mr?' ms':''}" data-loc="${esc(mc)}">
       ${mr?'<span class="badge ms">MES 불일치</span>':''}
