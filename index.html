@@ -1688,7 +1688,7 @@ function renderHist(){
     `<tr><td class="num" style="color:var(--tx3)">${rows.length-i}</td><td class="num">${fmt(h.at)}</td>
      <td><span class="chip ${kc[h.kind]||'n'}">${esc(h.kind||'이동')}</span></td>
      <td>${esc(h.pn)}</td><td class="num">${esc(h.mn||'—')}</td>
-     <td>${esc(h.loc||'—')}</td><td class="num">${esc(h.rack||'—')}</td><td>${esc(h.by||'—')}</td>
+     <td style="white-space:nowrap">${esc(h.loc||'—')}</td><td class="num">${esc(h.rack||'—')}</td><td style="white-space:nowrap">${esc(h.by||'—')}</td>
      <td style="color:var(--tx3);font-size:11.5px">${h.m4?'<span class="chip b">4M</span> ':''}${esc(h.note||'')}</td></tr>`).join('')
     : `<tr><td colspan="9" class="empty">이력이 없습니다</td></tr>`;
 }
