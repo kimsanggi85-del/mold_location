@@ -966,7 +966,8 @@ td{border-bottom:1px solid #243049}
         <button class="btn" onclick="clearAuditors()">지정 해제</button>
         <span id="adNow" style="margin-left:auto;font-size:12px;color:var(--tx3)"></span>
       </div>
-      <p class="hint">확인자는 <strong>점검자와 다른 사람</strong>의 PIN으로 서명해야 합니다(자가 확인 방지).
+      <p class="hint"><strong>관리자(김상기 · 강병주)</strong>는 모든 권한을 가지며, 지정 담당자·확인자가 아니어도 '대행' 없이 점검·확인할 수 있습니다.
+        확인자는 <strong>점검자와 다른 사람</strong>의 PIN으로 서명해야 합니다(자가 확인 방지 — 관리자도 동일).
         지정 해제 시 담당자 경고는 사라지지만 <strong>확인자 서명 의무는 그대로 유지</strong>됩니다.
         IATF 16949 / SQ 심사에서 “자격을 부여받은 자가 수행하고 별도 인원이 검증” 근거로 사용됩니다.</p>
     </div>
@@ -1116,6 +1117,10 @@ function needPin(){
    · 지정 담당자(주/부) 외에도 점검은 가능하되 '대행'으로 기록 → 추적성 확보
    · 확인자는 점검자와 다른 사람의 PIN 서명 필수 → 2차 검증 누락 방지
    ══════════════════════════════════════════════════════════════ */
+/* 관리자 : 모든 권한 — 지정 담당자·확인자가 아니어도 '대행' 없이 점검·확인 가능.
+   (점검자와 확인자가 같은 사람일 수 없다는 자가 확인 방지 규칙은 관리자도 적용) */
+const ADMINS = ['김상기','강병주'];
+const isAdmin = nm => ADMINS.includes(String(nm||'').trim());
 function audDesignated(){ const a=S.auditors||{}; return !!(a.main||a.sub||a.conf); }
 function audNames(){ const a=S.auditors||{}; return [a.main,a.sub].filter(Boolean); }
 
@@ -1123,7 +1128,7 @@ function audNames(){ const a=S.auditors||{}; return [a.main,a.sub].filter(Boolea
 function checkAuditor(name){
   const list=audNames();
   if(!list.length) return {proxy:false};              // 미지정 = 통제 없음
-  if(list.includes(name)) return {proxy:false};
+  if(list.includes(name) || isAdmin(name)) return {proxy:false};   // 지정 담당자 · 관리자
   if(!confirm(`지정 실사 담당자는 ${list.join(' · ')} 입니다.\n\n`
     +`${name} 님은 지정 담당자가 아닙니다.\n`
     +`계속하면 실사 기록에 '대행'으로 남습니다.\n\n진행할까요?`)) return false;
@@ -1142,7 +1147,7 @@ function signConfirm(by){
   if(u.name===String(by||'').trim()){
     toast('점검자와 확인자는 같을 수 없습니다',true); return null; }
   let proxy=false;
-  if(des && u.name!==des){
+  if(des && u.name!==des && !isAdmin(u.name)){
     if(!confirm(`지정 확인자는 ${des} 입니다.\n\n`
       +`${u.name} 님은 지정 확인자가 아닙니다.\n`
       +`계속하면 '대행 확인'으로 기록됩니다.\n\n진행할까요?`)) return null;
@@ -1190,7 +1195,7 @@ async function approveAudit(i){
 function renderMe(){
   const e=$('#meBox'); if(!e) return;
   e.innerHTML = S.me
-    ? `<div class="lbl">담당자</div><div class="val" style="font-size:12px;color:var(--ok)">${esc(S.me)}</div>`
+    ? `<div class="lbl">담당자</div><div class="val" style="font-size:12px;color:var(--ok)">${esc(S.me)}${isAdmin(S.me)?' <span class="chip w" title="모든 권한">관리자</span>':''}</div>`
     : `<div class="lbl">담당자</div><div class="val" style="font-size:12px;color:var(--tx3)">미인증</div>`;
 }
 function logout(){ S.me=''; try{store.set('ml:me','');}catch(e){} renderMe(); toast('인증을 해제했습니다'); }
@@ -2059,7 +2064,7 @@ async function saveAudit(){
   $('#auYm').value=ym;
   if(!by) return toast('점검자를 입력하세요',true);
   if(checkAuditor(by)===false) return;
-  const byProxy = audNames().length ? !audNames().includes(by) : false;
+  const byProxy = audNames().length ? !(audNames().includes(by) || isAdmin(by)) : false;
   if(!cf){
     if(!confirm('확인자 서명이 없습니다.\n\n'
       +'[확인] 누르면 → 승인 대기 상태로 저장합니다.\n'
