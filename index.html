@@ -218,6 +218,12 @@ pre{background:#0f1115;border:1px solid var(--line);border-radius:7px;padding:13
 .badge.ms{background:var(--bad);animation:flash 2.6s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.badge.ms{animation:none}}
 .bay.ms{border-color:rgba(224,82,79,.55);box-shadow:0 0 0 1px rgba(224,82,79,.25)}
+/* MES 장착 금형과 현황판이 다른 설비 : 타일 전체가 깜빡인다 */
+.bay.mesbad{border-color:var(--bad);animation:baypulse 1.6s ease-in-out infinite;position:relative}
+.bay.mesbad::after{content:'';position:absolute;inset:0;background:rgba(224,82,79,.16);opacity:0;animation:flash 1.6s ease-in-out infinite;pointer-events:none;border-radius:inherit}
+@keyframes baypulse{0%,100%{box-shadow:0 0 0 1px rgba(224,82,79,.35)}50%{box-shadow:0 0 0 3px rgba(224,82,79,.85),0 0 18px rgba(224,82,79,.55)}}
+@media(prefers-reduced-motion:reduce){.bay.mesbad{animation:none;box-shadow:0 0 0 2px rgba(224,82,79,.7)}.bay.mesbad::after{animation:none;opacity:.6}}
+@media print{.bay.mesbad{animation:none}.bay.mesbad::after{display:none}}
 .bay .msnote{font-size:10.5px;color:#ff9b98;margin-top:6px;font-weight:600}
 .rack.ms{border-color:rgba(224,82,79,.5)}
 
@@ -1569,10 +1575,12 @@ function renderBoard(){
     const mesNote=mr?`<div class="note2" style="color:${mOk?'var(--tx3)':'var(--cR)'}">MES ${mSame?'생산':'마지막 생산'} · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
     const holdNote=hs?`<div class="holdnote">${esc(hs.st)}${hs.note?' · '+esc(hs.note):''}<br><span style="color:var(--tx3)">${esc(fmt(hs.at))} · ${esc(hs.by||'')}</span></div>`:'';
     const mcNm=esc(nm.join(' '));
+    const liveBad=(typeof mesIssues==='function') && mesIssues().some(r=>r.mc===mc);   // 실시간 설비현황 대조 불일치
+    const mesBad=(mr&&!mOk) || liveBad;                                                 // 생산실적·실시간 중 하나라도 불일치면 깜빡임
     if(!top){
-      const bad=mr&&!mOk;
+      const bad=mesBad;
       const [pc,pt]=bad?['r','MES 불일치']:hs?['y',esc(hs.st)]:['n','대기'];
-      return `<button class="bay empty${hs?' hold':''}${bad?' ms':''}" data-loc="${esc(mc)}">
+      return `<button class="bay empty${hs?' hold':''}${bad?' ms mesbad':''}" data-loc="${esc(mc)}">
       <div class="t1"><b class="num">${no}호기</b><em>${mcNm}</em></div>
       <div class="t2 mute">장착 금형 없음</div>
       <div class="t3"><span>장착 경과</span><span class="num">— / ${AGE_BAD}일</span></div>
@@ -1583,10 +1591,10 @@ function renderBoard(){
     const g=top.fix?0:grade(top.at), d=days(top.at);
     const pct=top.fix?100:Math.min(100,Math.round((d??AGE_BAD)/AGE_BAD*100));
     const mrow=list.filter(x=>x.ms);
-    const [pc,pt]= mrow.length?['r','위치 불일치'] : !mOk?['r','MES 불일치'] : hs?['y',esc(hs.st)]
+    const [pc,pt]= mrow.length?['r','위치 불일치'] : mesBad?['r','MES 불일치'] : hs?['y',esc(hs.st)]
       : list.length>1?['r','중복 '+list.length] : g===2?['r','장기 장착'] : g===1?['y','점검 필요'] : ['g','가동'];
     const bc = top.fix?'c':(g===2?'r':g===1?'y':'g');
-    return `<button class="bay s${g}${hs?' hold':''}${mrow.length||!mOk?' ms':''}" data-loc="${esc(mc)}">
+    return `<button class="bay s${g}${hs?' hold':''}${mrow.length||mesBad?' ms':''}${mesBad?' mesbad':''}" data-loc="${esc(mc)}">
       <div class="t1"><b class="num">${no}호기</b><em>${mcNm}</em></div>
       <div class="t2" title="${esc(top.pn)}">${esc(top.pn)}</div>
       <div class="t3"><span>장착 경과</span><span class="num">${top.fix?'고정 금형':(d===null?'—':d)+' / '+AGE_BAD+'일'}</span></div>
