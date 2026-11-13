@@ -2447,15 +2447,18 @@ async function saveMcStatusUI(){
   if(!mc) return toast('호기를 선택하세요',true);
   const prev=mcStatus(mc);
   if(!st && !prev) return toast('이미 가동 상태입니다');
-  if(prev && prev.st===st && (prev.note||'')===note) return toast('변경된 내용이 없습니다');
-  if(st && mountedOn(mc).some(m=>!isMarker(m)) &&
+  const same = !!prev && prev.st===st && (prev.note||'')===note;
+  if(st && !same && mountedOn(mc).some(m=>!isMarker(m)) &&
      !confirm(`${mc}에 금형이 장착 상태로 남아 있습니다.\n(${mountedOn(mc).filter(m=>!isMarker(m)).map(m=>m.pn).join(', ')})\n\n내린 금형이면 위 교체 화면에서 반납 처리하세요.\n상태만 먼저 저장할까요?`)) return;
   if(!needPin()) return;
+  // 상태·사유가 같아도 담당자가 다르면 '담당자 확인'으로 다시 저장 (예: 자동 등록분을 본인 이름으로 확정)
+  if(same && prev.by===S.me) return toast('변경된 내용이 없습니다 — 사유를 바꾸거나 상태를 고르세요');
   const now=new Date().toISOString();
   S.mcs ||= {};
-  if(st) S.mcs[mc]={st, note, by:S.me, at:now}; else delete S.mcs[mc];
+  if(st) S.mcs[mc]={st, note, by:S.me, at: same ? (prev.at||now) : now}; else delete S.mcs[mc];
   S.hist.push({pn:st?`[${st}]`:'[가동 복귀]', mn:'', loc:mc, rack:'', at:now, by:S.me, kind:'설비상태', m4:false,
-    note:(st?`${mc} 설비 상태 '${st}' 지정${note?' · '+note:''}`:`${mc} 설비 상태 해제 · 가동 복귀`)+(prev?` (이전 '${prev.st}')`:'')});
+    note: same ? `${mc} 설비 상태 '${st}' 담당자 확인 (${prev.by||'—'} → ${S.me})`
+               : (st?`${mc} 설비 상태 '${st}' 지정${note?' · '+note:''}`:`${mc} 설비 상태 해제 · 가동 복귀`)+(prev?` (이전 '${prev.st}')`:'')});
   const ok=(await Promise.all([sbUpload(K_MCS, S.mcs), saveHist()])).every(Boolean);
   toast(ok?(st?`${mc} — '${st}' 표시했습니다`:`${mc} — 설비 상태를 해제했습니다`):'저장 실패 — 연결을 확인하세요', !ok);
   renderAll(); renderMcs(mc);
