@@ -1345,11 +1345,12 @@ function renderBoard(){
     const list=(byLoc[mc]||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
     const top=list[0];
     const mr=MESNOW.ok?MESNOW.byLoc[mc]:null;
-    // 상태 표시(설비 수리 등)만 걸린 호기는 MES 생산 종료 뒤에 표시한 것이면 불일치로 보지 않는다
-    const mOk=!mr || list.some(x=>mesK(x.mn)===mesK(mr.mn)) || (list.length && list.every(x=>isMarker(x) && movedAfter(x,mr)));
-    const mesNote=mr?`<div class="msnote" style="${mOk?'color:var(--tx3)':''}">MES ${list.length&&list.every(isMarker)?'마지막 생산':'생산'} · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
-    if(!top) return `<button class="bay empty${mr?' ms':''}" data-loc="${esc(mc)}">
-      ${mr?'<span class="badge ms">MES 불일치</span>':''}
+    // 정상으로 보는 경우 : 같은 금형이 걸려 있음 / 걸린 항목(금형·상태 표시)이 모두 MES 생산 종료 뒤 등록됨 / 비어 있고 그 금형이 MES 생산 종료 뒤 반납됨(설비 수리 등)
+    const mSame=list.some(x=>mesK(x.mn)===mesK(mr?.mn));
+    const mOk=!mr || mSame || (list.length ? list.every(x=>movedAfter(x,mr)) : movedAfter(mesFind(mr),mr));
+    const mesNote=mr?`<div class="msnote" style="${mOk?'color:var(--tx3)':''}">MES ${mSame?'생산':'마지막 생산'} · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
+    if(!top) return `<button class="bay empty${mr&&!mOk?' ms':''}" data-loc="${esc(mc)}">
+      ${mr&&!mOk?'<span class="badge ms">MES 불일치</span>':''}
       <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
       <div class="vac">장착 금형 없음</div>${mesNote}</button>`;
     const g=top.fix?0:grade(top.at), d=days(top.at);
@@ -2179,12 +2180,20 @@ function mesCompare(mes){
     const mc=mcOf(x.ho);
     const on = mc ? S.master.filter(m=>m.loc===mc) : [];
     const idle = !x.is_producing && !x.last_shot_at;
+    const lastShot = x.last_shot_at ? new Date(x.last_shot_at).getTime() : 0;
+    const after = m => !!(m && m.at) && new Date(m.at).getTime() > lastShot;     // 현황판 이동 기록이 MES 마지막 타발보다 나중
+    const mesMold = x.current_mold ? S.master.find(m=>mnSame(m.mn,x.current_mold)) : null;
     let k, pr;
     if(!x.current_mold){ k = on.length?'현황판만 장착':'양쪽 비어 있음'; pr = on.length?'warn':'ok'; }
     else if(!mc){ k='현황판 설비목록에 없는 호기'; pr='low'; }
-    else if(!on.length){ k = idle?'MES 잔존 작업지시':'현황판 장착 없음'; pr = idle?'low':'bad'; }
+    else if(!on.length){
+      if(idle){ k='MES 잔존 작업지시'; pr='low'; }
+      else if(!x.is_producing && mesMold && mesMold.loc===STORE && after(mesMold)){ k='반납 처리됨 · MES 작업지시 미마감'; pr='low'; }   // 설비 수리 등으로 금형을 내린 경우
+      else { k='현황판 장착 없음'; pr='bad'; }
+    }
     else if(on.some(m=>mnSame(m.mn,x.current_mold))){ k = on.length>1?'일치 (중복 장착)':'일치'; pr = on.length>1?'warn':'ok'; }
     else if(on.every(isMarker)){ k = x.is_producing?'불일치 (설비 정지 표시인데 MES 가동 중)':'설비 정지 표시 · MES 작업지시 미마감'; pr = x.is_producing?'bad':'low'; }
+    else if(!x.is_producing && on.every(after)){ k='교체 등록됨 · MES 작업지시 미갱신'; pr='low'; }   // MES 마지막 타발 뒤 현황판에서 교체한 경우
     else { k='불일치'; pr='bad'; }
     rows.push({ho:x.ho, mc: mc||('호기 '+x.ho), mesMold:x.current_mold||'', mesItem:x.current_item_code||'', mesName:x.item_name||'',
       board:on, k, pr, last:x.last_shot_at, producing:!!x.is_producing, mesAt:x.updated_at});
