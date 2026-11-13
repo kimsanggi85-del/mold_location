@@ -1345,8 +1345,9 @@ function renderBoard(){
     const list=(byLoc[mc]||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
     const top=list[0];
     const mr=MESNOW.ok?MESNOW.byLoc[mc]:null;
-    const mOk=!mr || list.some(x=>mesK(x.mn)===mesK(mr.mn));
-    const mesNote=mr?`<div class="msnote" style="${mOk?'color:var(--tx3)':''}">MES 생산 · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
+    // 상태 표시(설비 수리 등)만 걸린 호기는 MES 생산 종료 뒤에 표시한 것이면 불일치로 보지 않는다
+    const mOk=!mr || list.some(x=>mesK(x.mn)===mesK(mr.mn)) || (list.length && list.every(x=>isMarker(x) && movedAfter(x,mr)));
+    const mesNote=mr?`<div class="msnote" style="${mOk?'color:var(--tx3)':''}">MES ${list.length&&list.every(isMarker)?'마지막 생산':'생산'} · ${esc(mr.pn||'')} ${esc(mr.mn)} (${esc(mr.ymd.slice(5))} ${esc(mr.end)})</div>`:'';
     if(!top) return `<button class="bay empty${mr?' ms':''}" data-loc="${esc(mc)}">
       ${mr?'<span class="badge ms">MES 불일치</span>':''}
       <div class="id"><span class="no num">${no}</span><span class="mc">${esc(nm.join(' '))}</span></div>
