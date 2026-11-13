@@ -580,6 +580,7 @@ body.capture main{padding:22px}
       <input type="month" id="auYm" style="max-width:150px" title="점검월">
       <input type="date" id="auCd" style="max-width:160px" title="점검일자">
       <input type="text" id="auBy" placeholder="점검자" style="max-width:140px">
+      <label class="chk" style="margin:0;padding:6px 10px" title="비가동 금형은 기본적으로 전수 점검표에서 제외됩니다"><input type="checkbox" id="auInc" onchange="renderAudit()"><span>비가동 포함</span></label>
       <button class="btn" id="faSign" onclick="faSignConfirm()"
         title="점검자와 다른 사람의 PIN으로 서명합니다">확인자 서명</button>
       <button class="btn pri" onclick="saveAudit()">실사 결과 저장</button>
@@ -1330,7 +1331,7 @@ function renderBoard(){
   $('#warnBox').style.display = S.au.on?'none':'';
 
   $('#kpis').innerHTML = `
-    <div class="kpi"><div class="k">등록 금형</div><div class="v num">${S.master.length}</div><div class="s">이력 ${S.hist.length}건 누적</div></div>
+    <div class="kpi"><div class="k">등록 금형</div><div class="v num">${S.master.filter(m=>!m.inactive).length}</div><div class="s">비가동 ${S.master.filter(m=>m.inactive).length}건 별도 · 이력 ${S.hist.length}건</div></div>
     <div class="kpi g"><div class="k">설비 장착</div><div class="v num">${onPress.length}</div><div class="s">가동 프레스 ${new Set(onPress.map(m=>m.loc)).size}호기</div></div>
     <div class="kpi ${miss.length?'b':'g'}"><div class="k">위치 불일치</div><div class="v num">${miss.length}</div><div class="s">${miss.length?'보정 필요':'실사 일치'}</div></div>
     <div class="kpi ${dups.length?'b':'g'}"><div class="k">중복 장착</div><div class="v num">${dups.length}</div><div class="s">1호기 1금형 위반</div></div>
@@ -1417,20 +1418,25 @@ function renderBoard(){
 /* ═══ 렌더: 조회 ═══ */
 function renderSearch(){
   const q=$('#q').value.trim().toLowerCase(), fl=$('#fLoc').value, fa=$('#fAge').value;
+  const inactN=S.master.filter(m=>m.inactive).length;
   let rows=S.master.filter(m=>{
     if(q && !(m.pn+' '+m.mn).toLowerCase().includes(q)) return false;
-    if(fl==='__press__'){ if(!m.loc || m.loc===STORE) return false; }
-    else if(fl && m.loc!==fl) return false;
+    if(fl==='__inactive__'){ if(!m.inactive) return false; }
+    else if(fl==='__all__'){ }
+    else if(fl==='__press__'){ if(!m.loc || m.loc===STORE) return false; }
+    else if(fl){ if(m.loc!==fl) return false; }
+    else if(m.inactive && !q) return false;        // 기본 목록은 비가동 제외 (검색어가 있으면 포함)
     if(fa==='F'){ if(!m.fix) return false; }
     else if(fa!==''){ if(m.fix) return false; if(String(Math.min(grade(m.at),2))!==fa) return false; }
     return true;
   }).sort((a,b)=>(b.at||'').localeCompare(a.at||''));
-  $('#qCnt').textContent = `${rows.length}건`;
+  $('#qCnt').textContent = `${rows.length}건${inactN && !fl && !q ? ` · 비가동 ${inactN}건 제외` : ''}`;
   $('#qBody').innerHTML = rows.length ? rows.map(m=>{
     const g=m.fix?0:grade(m.at), d=days(m.at);
-    return `<tr><td>${esc(m.pn)}</td><td class="num">${esc(m.mn||'—')}</td>
+    return `<tr${m.inactive?' style="opacity:.6"':''}><td>${esc(m.pn)}</td><td class="num">${esc(m.mn||'—')}</td>
       <td><span class="chip ${m.ms?'b':m.loc===STORE?'n':'g'}">${esc(m.loc||'—')}</span>
-          ${m.ms?`<span class="chip b" title="실사 확인 ${esc(m.msLoc)}">불일치</span>`:''}</td>
+          ${m.ms?`<span class="chip b" title="실사 확인 ${esc(m.msLoc)}">불일치</span>`:''}
+          ${m.inactive?`<span class="chip n" title="${esc(m.inactiveNote||'')} · ${esc(fmt(m.inactiveAt))} ${esc(m.inactiveBy||'')}">비가동</span>`:''}</td>
       <td class="num" style="color:var(--tx3)">${esc(m.rack||'—')}</td><td class="num">${fmt(m.at)}</td>
       <td>${m.fix?'<span class="chip n">고정</span>':`<span class="chip ${['g','w','b','b'][g]}">${d===null?'없음':d+'일'}</span>`}</td>
       <td><button class="btn sm ${m.fix?'':''}" onclick="toggleFix('${esc(m.pn)}|${esc(m.mn)}')"
@@ -1464,8 +1470,9 @@ function renderHist(){
 /* ═══ 이동 등록 ═══ */
 function fillSelects(){
   const locOpts = `<option value="${STORE}">${STORE}</option>` + MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
-  const fLocOpts = `<option value="">위치 전체</option><option value="__press__">설비 장착 전체</option>`
-    + `<option value="${STORE}">${STORE}</option>` + MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
+  const fLocOpts = `<option value="">위치 전체 (비가동 제외)</option><option value="__press__">설비 장착 전체</option>`
+    + `<option value="${STORE}">${STORE}</option>` + MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('')
+    + `<option value="__inactive__">비가동 금형만</option><option value="__all__">전체 (비가동 포함)</option>`;
   $('#mvLoc').innerHTML = locOpts;
   $('#mvRack').innerHTML = `<option value="">—</option>`+RACKS.map(r=>{ const ri=rackInfo(r), u=rackUsed(r);
     return `<option value="${r}">${r}${ri.cap>0?`  ${u}/${ri.cap}${u>=ri.cap?'  만재':''}`:''}</option>`; }).join('');
@@ -1509,7 +1516,7 @@ function fillSwap(){
   if(cur) $('#swMc').value=cur;
   $('#swNew').innerHTML = `<option value="">— 장착 없음 (반납만 처리) —</option>` +
     S.master.filter(m=>m.loc===STORE||!m.loc).sort((a,b)=>a.pn.localeCompare(b.pn))
-      .map(m=>`<option value="${esc(m.pn)}|${esc(m.mn)}">${esc(m.pn)}${m.mn?' · '+esc(m.mn):''}${m.rack?'  ['+esc(m.rack)+']':''}</option>`).join('');
+      .map(m=>`<option value="${esc(m.pn)}|${esc(m.mn)}">${esc(m.pn)}${m.mn?' · '+esc(m.mn):''}${m.rack?'  ['+esc(m.rack)+']':''}${m.inactive?'  (비가동)':''}</option>`).join('');
   showMounted();
 }
 function showMounted(){
@@ -1589,7 +1596,8 @@ async function saveSwap(){
   const now=new Date().toISOString();
   recs.forEach(r=>{
     const m=S.master.find(x=>x.pn===r.pn&&x.mn===r.mn);
-    if(m){ m.loc=r.loc; m.rack=r.rack; m.at=now; }
+    if(m){ m.loc=r.loc; m.rack=r.rack; m.at=now;
+      if(r.kind==='장착' && m.inactive){ delete m.inactive; delete m.inactiveAt; delete m.inactiveBy; delete m.inactiveNote; r.note=(r.note||'')+' · 비가동 해제(장착)'; } }
     S.hist.push({...r,at:now,by,m4});
   });
   await Promise.all([saveMaster(), saveHist()]);
@@ -1659,6 +1667,8 @@ function openMoldForm(k){
         <select id="mfRack">${rackOpts}</select></div>
     </div>`}
     <label class="chk"><input type="checkbox" id="mfFix" ${m?.fix?'checked':''}><span>설비 전용 고정 금형</span></label>
+    <label class="chk"><input type="checkbox" id="mfInactive" ${m?.inactive?'checked':''}><span>비가동 금형 <small style="color:var(--tx3)">— 장기 미사용·단종 대기. 기본 조회·전수 점검표에서 제외</small></span></label>
+    ${m?.inactive?`<div style="font-size:12px;color:var(--tx3);margin:-4px 0 10px 24px">${esc(m.inactiveNote||'')} · ${esc(fmt(m.inactiveAt))} ${esc(m.inactiveBy||'')}</div>`:''}
     <div class="fld"><label>${m?'수정':'등록'} 사유</label>
       <input type="text" id="mfNote" placeholder="${m?'예: 금형번호 오기 정정':'예: 신규 금형 입고 / 이관'}"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1693,7 +1703,9 @@ async function saveMoldForm(){
     if(loc!==STORE && mountedOn(loc).length &&
        !confirm(`${loc}에 이미 장착된 금형이 있습니다.\n(${mountedOn(loc).map(x=>x.pn).join(', ')})\n\n그래도 이 호기에 추가할까요?`)) return;
     if(!needPin()) return;
-    S.master.push({pn,mn,loc,rack,at:now,fix,ms:false,msLoc:'',msRack:'',msAt:'',msBy:'',msYm:''});
+    const inact0=!!$('#mfInactive')?.checked && loc===STORE;
+    S.master.push({pn,mn,loc,rack,at:now,fix,ms:false,msLoc:'',msRack:'',msAt:'',msBy:'',msYm:'',
+      ...(inact0?{inactive:true,inactiveAt:now,inactiveBy:S.me,inactiveNote:note||''}:{})});
     S.hist.push({pn,mn,loc,rack,at:now,by:S.me,kind:'신규등록',note:note||'금형 추가',m4:false});
     const ok=(await Promise.all([saveMaster(), saveHist()])).every(Boolean);
     toast(ok?`${pn} 추가 완료 — ${loc}${rack?' '+rack:''}`:'추가는 화면에 반영됐지만 서버 저장에 실패했습니다', !ok);
@@ -1705,6 +1717,11 @@ async function saveMoldForm(){
       if(fix && (!m.loc||m.loc===STORE)) return toast('전용 고정은 설비에 장착된 금형만 지정할 수 있습니다',true);
       chg.push(fix?'전용고정 지정':'전용고정 해제');
     }
+    const inactive=!!$('#mfInactive')?.checked;
+    if(!!m.inactive!==inactive){
+      if(inactive && m.loc && m.loc!==STORE) return toast('설비에 장착된 금형은 비가동으로 지정할 수 없습니다. 먼저 반납하세요',true);
+      chg.push(inactive?'비가동 지정':'비가동 해제');
+    }
     if(!chg.length) return toast('변경된 내용이 없습니다');
     if(!needPin()) return;
     const oPn=m.pn, oMn=m.mn||'';
@@ -1715,6 +1732,10 @@ async function saveMoldForm(){
       if(S.au?.res?.[ok0]){ S.au.res[nk]=S.au.res[ok0]; delete S.au.res[ok0]; }
     }
     m.pn=pn; m.mn=mn; m.fix=fix;
+    if(!!m.inactive!==inactive){
+      if(inactive){ m.inactive=true; m.inactiveAt=now; m.inactiveBy=S.me; m.inactiveNote=note||''; }
+      else { delete m.inactive; delete m.inactiveAt; delete m.inactiveBy; delete m.inactiveNote; }
+    }
     S.hist.push({pn,mn,loc:m.loc,rack:m.rack||'',at:now,by:S.me,kind:'정보수정',
       note:chg.join(' · ')+(note?` / ${note}`:''),m4:false});
     const ok=(await Promise.all([saveMaster(), saveHist()])).every(Boolean);
@@ -1747,7 +1768,9 @@ async function delMold(){
 function renderAudit(){
   if(!$('#auYm').value) $('#auYm').value=today().slice(0,7);
   if(!$('#auCd').value) $('#auCd').value=today();
-  const rows=S.master.slice().sort((a,b)=>(a.loc||'').localeCompare(b.loc||'')||a.pn.localeCompare(b.pn));
+  const incInact=!!$('#auInc')?.checked, inactN=S.master.filter(m=>m.inactive).length;
+  const rows=S.master.filter(m=>incInact||!m.inactive).sort((a,b)=>(a.loc||'').localeCompare(b.loc||'')||a.pn.localeCompare(b.pn));
+  const lb=$('#auInc')?.closest('label')?.querySelector('span'); if(lb) lb.textContent=`비가동 포함 (${inactN})`;
   const locOpts=`<option value="">선택</option><option value="${STORE}">${STORE}</option>`+MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
   const rackOpts=RACKS.map(r=>`<option value="${r}">${r}</option>`).join('');
   $('#auBody').innerHTML=rows.map((m,i)=>`
@@ -2358,7 +2381,7 @@ function ntIssues(){
     const leftF=new Date(now.getFullYear(),M,0).getDate()-D;
     if(!fullThis && leftF<=7) out.push({k:'full', pr:leftF<=1?'high':'default', tab:'audit',
       t:M+'월 전수 점검 '+(leftF<=0?'오늘까지':'D-'+leftF),
-      m:'보관장 포함 '+S.master.length+'건 대조점검'});
+      m:'보관장 포함 '+S.master.filter(m=>!m.inactive).length+'건 대조점검 (비가동 제외)'});
   }
   if(on.ms && miss.length) out.push({k:'ms', pr:'high', tab:'board',
     t:'위치 불일치 '+miss.length+'건 미조치',
@@ -3056,8 +3079,8 @@ function dl(name,rows){
 }
 function exportCsv(){
   dl(`금형위치현황_${new Date().toISOString().slice(0,10)}.csv`,
-    [['품번','금형번호','위치','보관함','최종갱신','경과일'],
-     ...S.master.map(m=>[m.pn,m.mn,m.loc,m.rack,fmt(m.at),days(m.at)??''])]);
+    [['품번','금형번호','위치','보관함','최종갱신','경과일','상태','비가동 사유'],
+     ...S.master.map(m=>[m.pn,m.mn,m.loc,m.rack,fmt(m.at),days(m.at)??'',m.inactive?'비가동':'가동',m.inactive?(m.inactiveNote||''):''])]);
 }
 function exportHist(){
   dl(`금형이동이력_${new Date().toISOString().slice(0,10)}.csv`,
