@@ -2474,7 +2474,12 @@ async function saveMcStatusUI(){
    현황판과 같은 Supabase 프로젝트에서 읽어, 호기번호 기준으로 현황판 장착 금형과 비교한다 */
 function mesState(){ return S.mes || (S.mes={at:'', rows:[], err:'', mesAt:''}); }
 const mnNorm = s => String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
-const mnSame = (a,b)=>{ a=mnNorm(a); b=mnNorm(b); return !!a && !!b && (a===b || a.includes(b) || b.includes(a)); };
+/* 금형번호 동일 판정 : 같은 번호이거나, 6자 이상 번호가 다른 번호 안에 통째로 들어 있을 때만 (예: 16DFA201A(19ACA207A) ↔ 19ACA207A)
+   '0' 같은 짧은 오기 번호가 23BKA001A 등과 일치로 잡히던 문제 방지 */
+const mnSame = (a,b)=>{ a=mnNorm(a); b=mnNorm(b); if(!a||!b) return false; if(a===b) return true;
+  const [sh,lg]=a.length<=b.length?[a,b]:[b,a]; return sh.length>=6 && lg.includes(sh); };
+/* MES 금형번호에 해당하는 현황판 금형 : 정확히 같은 번호를 먼저, 없으면 포함 일치 */
+const masterByMold = mold => S.master.find(m=>mnNorm(m.mn) && mnNorm(m.mn)===mnNorm(mold)) || S.master.find(m=>mnSame(m.mn,mold)) || null;
 const hoOf = loc => { const m=String(loc||'').match(/^(\d+)/); return m?Number(m[1]):null; };
 /* 금형이 아닌 설비 상태 표시용 항목 (설비 수리-1, 계획 정지-2, 비가동(3) …) — 호기에 걸어 두면 그 호기의 상태 표시로 본다 */
 const isMarker = m => !!m && !(m.mn||'').trim() && /^(설비 수리|계획 정지|비가동|단발공정|생산품 T\/O|개발품 T\/O|T\/O)/.test(String(m.pn||'').trim());
@@ -2500,10 +2505,11 @@ function mesCompare(mes){
     const idle = !x.is_producing && !x.last_shot_at;
     const lastShot = x.last_shot_at ? new Date(x.last_shot_at).getTime() : 0;
     const after = m => !!(m && m.at) && new Date(m.at).getTime() > lastShot;     // 현황판 이동 기록이 MES 마지막 타발보다 나중
-    const mesMold = x.current_mold ? S.master.find(m=>mnSame(m.mn,x.current_mold)) : null;
+    const mesMold = x.current_mold ? masterByMold(x.current_mold) : null;
     let k, pr;
     if(!x.current_mold){ k = on.length?'현황판만 장착':'양쪽 비어 있음'; pr = on.length?'warn':'ok'; }
     else if(!mc){ k='현황판 설비목록에 없는 호기'; pr='low'; }
+    else if(!x.is_producing && mcStatus(mc) && !on.some(m=>mnSame(m.mn,x.current_mold))){ const hs=mcStatus(mc); k=`설비 상태 '${hs.st}' · MES 작업지시 미마감`; pr='low'; }
     else if(!on.length){
       if(idle){ k='MES 잔존 작업지시'; pr='low'; }
       else if(!x.is_producing && mesMold && mesMold.loc===STORE && after(mesMold)){ k='반납 처리됨 · MES 작업지시 미마감'; pr='low'; }   // 설비 수리 등으로 금형을 내린 경우
