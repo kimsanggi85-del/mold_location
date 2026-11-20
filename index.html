@@ -695,7 +695,8 @@ td{border-bottom:1px solid #243049}
           <label style="display:block;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;font-weight:600">현재 장착 금형 · 처리 방법</label>
           <div id="swCur"></div>
         </div>
-        <div class="fld"><label>신규 장착 금형</label><select id="swNew"></select></div>
+        <div class="fld"><label>신규 장착 금형</label><select id="swNew"></select>
+          <div id="swMesHint" style="font-size:12px;color:var(--steel);margin-top:6px;line-height:1.5"></div></div>
         <div class="row">
           <div class="fld"><label>담당자</label><input type="text" id="swBy" placeholder="PIN 인증 시 자동 입력" readonly></div>
           <div class="fld"><label>교체 사유</label><select id="swWhy">
@@ -1479,9 +1480,11 @@ async function mesApply(){
   const now=new Date().toISOString();
   d.wrong.forEach(({loc,r,m})=>{
     const from=(m.loc||'—')+(m.rack?' '+m.rack:'');
+    const wasInact=!!m.inactive;
     m.loc=loc; m.rack=''; m.at=now;
+    if(wasInact){ delete m.inactive; delete m.inactiveAt; delete m.inactiveBy; delete m.inactiveNote; }
     S.hist.push({pn:m.pn, mn:m.mn, loc, rack:'', at:now, by:S.me, kind:'장착', m4:false,
-      note:`MES 생산실적 대조 반영 (${r.ymd} ${r.st}~${r.end} 생산 · 기존 ${from})`});
+      note:`MES 생산실적 대조 반영 (${r.ymd} ${r.st}~${r.end} 생산 · 기존 ${from})${wasInact?' · 비가동 해제(장착)':''}`});
   });
   await Promise.all([saveMaster(), saveHist()]);
   toast(`MES 기준 ${d.wrong.length}건 장착 반영 — 남은 금형은 교체 화면에서 반납 처리하세요`);
@@ -1572,7 +1575,14 @@ function renderBoard(){
       `<button onclick="approveAudit(${x.i})">${esc(x.a.cd||x.a.ym)} ${esc(x.a.scope||'전수')}<b>${esc(x.a.by||'—')}</b></button>`).join('')}</div>
   </div>` : '';
 
-  $('#warnBox').innerHTML = pendPanel + mesPanel() + (dups.length ? `<div class="warnpanel">
+  const inH = (typeof mesInactiveHits==='function') ? mesInactiveHits() : [];
+  const inactPanel = inH.length ? `<div class="warnpanel">
+    <h4>비가동 금형 MES 생산 감지 ${inH.length}건</h4>
+    <p>비가동으로 분류된 금형이 MES 작업지시·생산실적에 나타났습니다. 실물을 확인하고 실제로 쓰는 금형이면 비가동을 해제하고 장착 등록하세요.
+       같은 품번의 다른 금형을 잘못 장착했을 수도 있습니다.</p>
+    <div class="wlist">${inH.map(x=>`<button onclick="clearInactive(${esc(JSON.stringify(x.m.pn+'|'+x.m.mn))})" title="비가동 해제 (PIN 필요)">${esc(x.m.pn)} · ${esc(x.m.mn)}<b>${esc(x.mc)} ${esc(x.src)} → 비가동 해제</b></button>`).join('')}</div>
+  </div>` : '';
+  $('#warnBox').innerHTML = pendPanel + mesPanel() + inactPanel + (dups.length ? `<div class="warnpanel">
     <h4>중복 장착 ${dups.length}개 호기</h4>
     <p>한 호기에 두 건 이상의 금형이 장착 상태로 남아 있습니다. 금형을 교체할 때 탈착 금형을 반납 처리하지 않아 누적된 것입니다.
        호기를 눌러 교체 화면에서 정리하면, 탈착 금형이 보관장으로 반납 기록되면서 해소됩니다.</p>
@@ -1746,13 +1756,41 @@ function fillSwap(){
     return `<option value="${mc}">${mc}${n>1?`  ⚠ 중복 ${n}건`:n===1?'':'  (비어 있음)'}</option>`;
   }).join('');
   if(cur) $('#swMc').value=cur;
-  $('#swNew').innerHTML = `<option value="">— 장착 없음 (반납만 처리) —</option>` +
-    S.master.filter(m=>m.loc===STORE||!m.loc).sort((a,b)=>a.pn.localeCompare(b.pn))
-      .map(m=>`<option value="${esc(m.pn)}|${esc(m.mn)}">${esc(m.pn)}${m.mn?' · '+esc(m.mn):''}${m.rack?'  ['+esc(m.rack)+']':''}${m.inactive?'  (비가동)':''}</option>`).join('');
   showMounted();
+}
+/* 그 호기에 MES 가 지금 걸어 둔 금형번호 (실시간 설비현황 우선, 없으면 최근 생산실적) */
+function mesMoldFor(mc){
+  const r=(mesState().rows||[]).find(x=>x.mc===mc && x.mesMold);
+  if(r) return {mn:r.mesMold, pn:r.mesItem||'', src:'MES 설비현황'};
+  const p=(typeof MESNOW!=='undefined' && MESNOW.ok) ? MESNOW.byLoc[mc] : null;
+  return p ? {mn:p.mn, pn:p.pn||'', src:'MES 생산실적'} : null;
+}
+/* 신규 장착 금형 목록 : MES 작업지시 금형을 맨 위에 '★ MES 작업지시' 로 표시하고,
+   같은 품번의 다른 금형에는 'MES 금형 아님' 을 붙여 같은 품번 금형을 잘못 고르는 일을 막는다 */
+function fillSwNew(mc){
+  const sel=$('#swNew'); if(!sel) return;
+  const keep=sel.value;
+  const pool=S.master.filter(m=>m.loc===STORE||!m.loc);
+  const mm=mesMoldFor(mc);
+  const hit = mm ? pool.filter(m=>mnSame(m.mn,mm.mn)) : [];
+  const hitPn = new Set(hit.map(m=>m.pn));
+  const opt=(m,extra)=>`<option value="${esc(m.pn)}|${esc(m.mn)}">${esc(m.pn)}${m.mn?' · '+esc(m.mn):''}${m.rack?'  ['+esc(m.rack)+']':''}${m.inactive?'  (비가동)':''}${extra||''}</option>`;
+  const rest=pool.filter(m=>!hit.includes(m)).sort((a,b)=>a.pn.localeCompare(b.pn));
+  sel.innerHTML = `<option value="">— 장착 없음 (반납만 처리) —</option>`
+    + (hit.length ? `<optgroup label="★ MES 작업지시 금형 (${esc(mm.src)} ${esc(mm.mn)})">${hit.map(m=>opt(m,'  ★ MES 작업지시')).join('')}</optgroup><optgroup label="그 밖의 보관 금형">` : '')
+    + rest.map(m=>opt(m, hitPn.has(m.pn)?'  ⚠ MES 금형 아님':'')).join('')
+    + (hit.length ? '</optgroup>' : '');
+  if(keep && [...sel.options].some(o=>o.value===keep)) sel.value=keep;
+  const hint=$('#swMesHint');
+  if(hint) hint.innerHTML = mm
+    ? (hit.length ? `MES 작업지시 금형 <strong>${esc(mm.mn)}</strong>${mm.pn?' · '+esc(mm.pn):''} — 목록 맨 위에 있습니다.`
+                  : (mountedOn(mc).some(m=>mnSame(m.mn,mm.mn)) ? `MES 작업지시 금형 <strong>${esc(mm.mn)}</strong> 이(가) 이미 이 호기에 장착돼 있습니다.`
+                  : `MES 작업지시 금형 <strong>${esc(mm.mn)}</strong>${mm.pn?' · '+esc(mm.pn):''} 이(가) 보관함 목록에 없습니다 (다른 호기 장착 중이거나 미등록).`))
+    : '';
 }
 function showMounted(){
   const mc=$('#swMc').value, list=mountedOn(mc);
+  fillSwNew(mc);
   renderMcs(mc);
   const rackOpts=RACKS.map(r=>{ const ri=rackInfo(r), u=rackUsed(r);
     const tag = ri.cap>0 ? `  ${u}/${ri.cap}${u>=ri.cap?'  만재':''}` : '';
@@ -2532,6 +2570,26 @@ function mesCompare(mes){
   return rows;
 }
 function mesIssues(){ return (mesState().rows||[]).filter(r=>r.pr==='bad'); }
+/* 비가동으로 분류된 금형이 MES 설비현황·최근 생산실적에 나타난 경우 (재가동 감지) */
+function mesInactiveHits(){
+  const out=[], seen=new Set();
+  const add=(mn,mc,src)=>{ const ms=S.master.filter(m=>m.inactive && mnSame(m.mn,mn));
+    ms.forEach(m=>{ const k=m.pn+'|'+m.mn; if(seen.has(k)) return; seen.add(k); out.push({m, mc, mesMn:mn, src}); }); };
+  (mesState().rows||[]).forEach(r=>{ if(r.mesMold) add(r.mesMold, r.mc, 'MES 설비현황'); });
+  if(typeof MESNOW!=='undefined' && MESNOW.ok) Object.entries(MESNOW.byLoc).forEach(([mc,r])=>add(r.mn, mc, 'MES 생산실적'));
+  return out;
+}
+/* 비가동 해제 : 금형 조회의 수정 화면과 같은 기록 방식 */
+async function clearInactive(key){
+  const m=S.master.find(x=>x.pn+'|'+x.mn===key); if(!m||!m.inactive) return;
+  if(!needPin()) return;
+  const now=new Date().toISOString();
+  delete m.inactive; delete m.inactiveAt; delete m.inactiveBy; delete m.inactiveNote;
+  S.hist.push({pn:m.pn, mn:m.mn, loc:m.loc, rack:m.rack||'', at:now, by:S.me, kind:'정보수정', m4:false, note:'비가동 해제 / MES 생산 감지'});
+  const ok=(await Promise.all([saveMaster(), saveHist()])).every(Boolean);
+  toast(ok?`${m.pn} · ${m.mn} 비가동을 해제했습니다`:'저장 실패 — 연결을 확인하세요', !ok);
+  renderAll();
+}
 let _mesBusy=false;
 async function mesRun(manual){
   const st=mesState();
@@ -2587,7 +2645,8 @@ function renderMes(){
   if(st.err){ chip.textContent='조회 실패'; chip.className='chip b'; info.textContent=st.err; return; }
   if(!st.at){ chip.textContent='대조 전'; chip.className='chip n'; return; }
   chip.textContent = bad?`불일치 ${bad}호기`:'모두 일치'; chip.className='chip '+(bad?'b':'g');
-  info.textContent=`대조 ${fmt(st.at)} · MES 갱신 ${fmt(st.mesAt)} · 가동 호기 ${st.rows.filter(r=>r.mesMold).length}`;
+  const ihN=mesInactiveHits().length;
+  info.textContent=`대조 ${fmt(st.at)} · MES 갱신 ${fmt(st.mesAt)} · 가동 호기 ${st.rows.filter(r=>r.mesMold).length}`+(ihN?` · 비가동 금형 MES 생산 ${ihN}건 (현황판 탭 확인)`:'');
   const cls={bad:'b',warn:'w',low:'n',ok:'g'};
   body.innerHTML = st.rows.length ? st.rows.map(r=>`
     <tr${r.pr==='bad'?' style="background:rgba(224,82,79,.06)"':r.pr==='low'?' style="opacity:.6"':''}>
@@ -2671,6 +2730,10 @@ function ntIssues(){
       m:mi.slice(0,6).map(r=>r.mc.split(' ')[0]+'호기  MES '+(r.mesMold||'—')+(r.mesItem?' ('+r.mesItem+')':'')
           +'  /  현황판 '+(r.board.length?r.board.map(b=>b.mn||b.pn).join(', '):'장착 없음')).join('\n')
         +(mi.length>6?'\n외 '+(mi.length-6)+'호기':'')});
+    const ih=mesInactiveHits();
+    if(ih.length) out.push({k:'mesinact', pr:'default', tab:'board',
+      t:'비가동 금형 MES 생산 감지 '+ih.length+'건',
+      m:ih.slice(0,6).map(x=>x.mc.split(' ')[0]+'호기  '+x.m.pn+' · '+x.m.mn+' (비가동 해제 필요)').join('\n')});
   }
   return out;
 }
