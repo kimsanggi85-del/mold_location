@@ -1430,7 +1430,11 @@ function mesTime(r){ const d=new Date(`${r.ymd}T${(r.end||r.st||'23:59').slice(0
 const movedAfter=(m,r)=>!!(m&&m.at&&new Date(m.at).getTime()>mesTime(r));
 function mesFind(r){
   const ms=S.master.filter(m=>mesK(m.mn)===mesK(r.mn));
-  return ms.find(m=>normK(m.pn)===normK(r.pn)) || ms[0] || null;
+  if(ms.length) return ms.find(m=>normK(m.pn)===normK(r.pn)) || ms[0];
+  /* 정확히 같은 번호가 없을 때 : MES 가 접미어 없이 쓰는 코드(예: 23BKA002 ↔ 23BKA002B)
+     → 그 호기에 장착된 금형 중 번호가 포함 일치하는 것, 없으면 전체에서 포함 일치가 하나뿐일 때만 */
+  const near=S.master.filter(m=>mnSame(m.mn,r.mn));
+  return near.find(m=>m.loc===r.loc) || (near.length===1 ? near[0] : null);
 }
 /* wrong : MES 장착 금형의 현황판 위치가 다름 · unreg : 현황판 미등록 · stale : 그 호기에 남아 있는 다른 금형(탈착 누락 의심) */
 function mesDiff(){
