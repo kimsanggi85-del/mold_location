@@ -1861,12 +1861,29 @@ async function saveSwap(){
       `등록 후 ${mc}에 금형이 ${willMount}건 남습니다.\n`+
       `(유지 ${kept.length}건${nv?' + 신규 장착 1건':''})\n\n`+
       `한 호기에는 보통 한 금형만 장착됩니다. 계속할까요?`)) return;
+  // 금형번호 빈 금형 장착 : MES 대조가 안 되므로 여기서 금형번호를 받는다 (MES 작업지시 금형을 기본값으로)
+  let fillMn=null;
+  if(nv){ const [pn0,mn0]=nv.split('|'); const m0=S.master.find(x=>x.pn===pn0&&x.mn===mn0);
+    if(noMn(m0)){
+      const mm=mesMoldFor(mc), sug=(mm && !masterByMold(mm.mn) && itemSame(m0.pn,mm.pn)) ? mm.mn : '';
+      const v=prompt(`${m0.pn} 금형은 금형번호(재번)가 비어 있습니다.\n`+
+        `금형번호가 없으면 MES 대조에서 '불일치'로 표시됩니다.\n\n`+
+        (sug?`MES 작업지시 금형: ${sug} (${mm.pn||''})\n`:'')+
+        `금형 명판의 금형번호를 입력하세요 (모르면 비워 두고 확인):`, sug);
+      if(v===null) return;
+      const t=v.trim();
+      if(t){ if(masterByMold(t)) return toast(`금형번호 ${t} 는 이미 다른 금형에 등록돼 있습니다`,true);
+        if(findDup(m0.pn,t,m0)) return toast(`${m0.pn} · ${t} 는 이미 등록된 금형입니다`,true);
+        fillMn={m:m0, mn:t, item:(sug&&t===sug)?mm.pn:''}; }
+    } }
   if(!needPin()) return;
+  let nvAdj=nv;
+  if(fillMn){ setMoldNo(fillMn.m, fillMn.mn, fillMn.item, by, `${mc} 장착 시 금형번호 입력`); nvAdj=fillMn.m.pn+'|'+fillMn.m.mn; }
 
   const note=why+(m4?' / 4M 변경':'');
   const recs=offs.map(o=>({pn:o.pn,mn:o.mn,loc:o.loc,rack:o.rack,kind:'반납',
     note:`${mc} 탈착 · ${note}${o.loc===STORE&&!o.rack?' · 보관위치 미확인(실사 시 확정)':''}`}));
-  if(nv){ const [pn,mn]=nv.split('|'); recs.push({pn,mn,loc:mc,rack:'',kind:'장착',note}); }
+  if(nvAdj){ const [pn,mn]=nvAdj.split('|'); recs.push({pn,mn,loc:mc,rack:'',kind:'장착',note}); }
 
   const now=new Date().toISOString();
   recs.forEach(r=>{
@@ -2558,6 +2575,7 @@ function mesCompare(mes){
       else { k='현황판 장착 없음'; pr='bad'; }
     }
     else if(on.some(m=>mnSame(m.mn,x.current_mold))){ k = on.length>1?'일치 (중복 장착)':'일치'; pr = on.length>1?'warn':'ok'; }
+    else if(noMnCand(mc, x.current_mold, x.current_item_code)){ k='금형번호 미입력 (품번 일치 · 생산 시 자동 지정)'; pr='warn'; }
     else if(mc && mcStatus(mc)){ const hs=mcStatus(mc); k = x.is_producing?`불일치 (설비 상태 '${hs.st}' 표시인데 MES 가동 중)`:`설비 상태 '${hs.st}' · MES 작업지시 미마감`; pr = x.is_producing?'bad':'low'; }
     else if(on.every(isMarker)){ k = x.is_producing?'불일치 (설비 정지 표시인데 MES 가동 중)':'설비 정지 표시 · MES 작업지시 미마감'; pr = x.is_producing?'bad':'low'; }
     else if(!x.is_producing && on.every(after)){ k='교체 등록됨 · MES 작업지시 미갱신'; pr='low'; }   // MES 마지막 타발 뒤 현황판에서 교체한 경우
@@ -2603,6 +2621,7 @@ async function mesRun(manual){
     const mes=await mesFetch();
     st.rows=mesCompare(mes); st.err=''; st.at=new Date().toISOString();
     st.mesAt=mes.map(x=>x.updated_at||'').sort().slice(-1)[0]||'';
+    if(await mesAutoFillMn(mes)) st.rows=mesCompare(mes);
     await mesAutoRelease(mes);
   }catch(e){ st.err=(e&&e.message)||'조회 실패'; if(manual) toast('MES 대조 실패 — '+st.err, true); }
   finally{ _mesBusy=false; }
@@ -2610,6 +2629,44 @@ async function mesRun(manual){
   if($('#p-board')?.classList.contains('on') && !S.au?.on) renderBoard();
   if(manual && !st.err){ const n=mesIssues().length; toast(n?`MES 대조 완료 — 불일치 ${n}호기`:'MES 대조 완료 — 가동 호기 모두 일치', n>0); }
   return st;
+}
+/* ── 금형번호 미입력 금형 ──
+   엑셀 이관 등으로 금형번호 없이 등록된 금형을 장착하면, MES 장착 금형과 짝을 못 지어 '불일치'로 뜬다.
+   품번이 MES 작업 품번과 같은(앞부분 일치) 금형번호 빈 금형을 MES 금형번호로 채운다 */
+const itemSame = (a,b)=>{ a=mnNorm(a); b=mnNorm(b); return !!a && !!b && (a.startsWith(b)||b.startsWith(a)); };
+const noMn = m => !!m && !String(m.mn||'').trim() && !isMarker(m);
+/* 그 호기의 금형번호 빈 금형 중 MES 품번과 맞는 것 — 정확히 하나일 때만 (MES 금형이 현황판 어디에도 없을 때) */
+function noMnCand(mc, mold, item){
+  if(!mc || !mold || masterByMold(mold)) return null;
+  const c=S.master.filter(m=>m.loc===mc && noMn(m) && itemSame(m.pn,item));
+  return c.length===1 ? c[0] : null;
+}
+/* 금형번호(필요하면 품번도) 지정 + 기존 이력 이관 + 정보수정 이력 */
+function setMoldNo(m, mn, item, by, why){
+  const oPn=m.pn, oMn=m.mn||'';
+  const pn = (item && mnNorm(item).startsWith(mnNorm(oPn)) && mnNorm(item)!==mnNorm(oPn)) ? item : oPn;   // 54610-C1000 → 54610-C1000-(TR) 처럼 MES 품번이 더 자세할 때만
+  if(findDup(pn,mn,m)) return false;
+  S.hist.forEach(h=>{ if(h.pn===oPn && (h.mn||'')===oMn){ h.pn=pn; h.mn=mn; } });
+  const ok0=oPn+'|'+oMn, nk=pn+'|'+mn;
+  if(S.au?.res?.[ok0]){ S.au.res[nk]=S.au.res[ok0]; delete S.au.res[ok0]; }
+  m.mn=mn; m.pn=pn;
+  const chg=[`금형번호 —→${mn}`].concat(pn!==oPn?[`품번 ${oPn}→${pn}`]:[]);
+  S.hist.push({pn, mn, loc:m.loc, rack:m.rack||'', at:new Date().toISOString(), by, kind:'정보수정', m4:false, note:chg.join(' · ')+' / '+why});
+  return true;
+}
+/* MES 가 생산 중인 금형이 현황판에 없고, 그 호기에 금형번호 빈 같은 품번 금형이 장착돼 있으면 자동으로 채운다 */
+async function mesAutoFillMn(mes){
+  const hits=()=>mes.map(x=>{ const mc=MACHINES.find(m=>hoOf(m)===x.ho);
+    return x.current_mold && x.is_producing ? {x, mc, m:noMnCand(mc, x.current_mold, x.current_item_code)} : null; }).filter(h=>h&&h.m);
+  if(!hits().length) return false;
+  await fetchAll();                       // 다른 기기가 먼저 채웠는지 최신 현황판으로 다시 확인 (덮어쓰기 방지)
+  const todo=hits(); if(!todo.length) return false;
+  const done=todo.filter(({x,mc,m})=>setMoldNo(m, String(x.current_mold).trim(), x.current_item_code, '자동(MES)',
+    `MES 설비현황(${x.machine_name||mc}) 생산 중 금형번호로 자동 지정`)).map(h=>`${h.mc} ${h.x.current_mold}`);
+  if(!done.length) return false;
+  await Promise.all([saveMaster(), saveHist()]);
+  toast(`금형번호 자동 지정 — ${done.join(', ')} (MES 생산 중 금형)`);
+  return true;
 }
 /* 설비 상태(설비 수리 등)가 지정된 호기에서 MES 가동이 감지되면 상태를 자동 해제한다.
    시운전 몇 타에 풀리지 않도록, 5분 간격 대조에서 두 번 연속 '가동 중(is_producing)'이고
